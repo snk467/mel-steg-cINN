@@ -1,4 +1,4 @@
-# Steg-cINN
+# Mel-Steg-cINN
 
 **Author:** Sławomir Nikiel
 
