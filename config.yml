@@ -1,0 +1,11 @@
+audio_parameters:
+  segment_length: 100000
+  sample_rate: 22050
+  filter_length: 1024
+  hop_length: 256
+  window_length: 1024
+  mean: -36.30719849302548
+  standard_deviation: 17.732551603649963
+  global_min: -1.9711308479309082
+  global_max: 3.7626562118530273
+train_configuration:

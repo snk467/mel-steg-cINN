@@ -9,7 +9,7 @@ class GaussianNoise:
         self.mean = mean
         self.variance = variance
 
-    def __call__(self, x):
+    def __call__(self, x: torch.Tensor):
         mean = random.choice(self.mean)
         variance = random.choice(self.variance)
-        return torch.tensor(random_noise(x, mode='gaussian', mean=mean, var=variance, clip=True))
+        return torch.tensor(random_noise(x, mode='gaussian', mean=mean, var=variance, clip=True), dtype=x.dtype)
