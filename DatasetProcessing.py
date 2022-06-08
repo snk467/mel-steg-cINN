@@ -1,16 +1,14 @@
 import argparse
-from locale import normalize
 import random
 import soundfile
 import os
 import Exceptions
-import matplotlib.pyplot as plt
 import Configuration
-from tqdm import tqdm
 import Normalization 
-from Utilities.Utilities import get_audio_files, load_audio
-from Utilities.Audio import Audio
 import Logger
+import matplotlib.pyplot as plt
+from Utilities import *
+from tqdm import tqdm
 logger = Logger.get_logger(__name__)
 
 class AudioDatasetProcessor:
@@ -47,7 +45,7 @@ class AudioDatasetProcessor:
         mel_spectrograms = []
         self.logger.info("Calculating color mel spectrograms.")
         for audio in tqdm(loaded_audio, leave=False):
-            mel_spectrograms.append(audio.calculate_color_mel_spectrogram(normalized=normalized, color=color, colormap=colormap))
+            mel_spectrograms.append(audio.get_color_mel_spectrogram(normalized=normalized, color=color, colormap=colormap))
         self.logger.info("Color mel spectrograms calculated.")
         return mel_spectrograms
 
@@ -55,9 +53,17 @@ class AudioDatasetProcessor:
         mel_spectrograms = []
         self.logger.info("Calculating mel spectrograms.")
         for audio in tqdm(loaded_audio, leave=False):
-            mel_spectrograms.append(audio.calculate_mel_spectrogram(normalized=normalized, range=range))
+            mel_spectrograms.append(audio.get_mel_spectrogram(normalized=normalized, range=range))
         self.logger.info("Mel spectrograms calculated.")
         return mel_spectrograms
+
+    def restore_audio(self, mel_spectrograms):
+        audio = []
+        self.logger.info("Restoring audio.")
+        for mel_spectrogram in tqdm(mel_spectrograms, leave=False):
+            audio.append(mel_spectrogram.get_audio())
+        self.logger.info("Audio restored.")
+        return audio
 
     def get_statistics(self):
         self.logger.info("Processing audio.")
@@ -84,6 +90,7 @@ class AudioDatasetProcessor:
 
         return mean, standard_deviation, min, max
 
+
     def process(self):
 
         self.logger.info("Processing audio.")
@@ -92,8 +99,10 @@ class AudioDatasetProcessor:
 
         color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio)
 
+        restored_audio = self.restore_audio(color_mel_spectrograms)
+
         self.logger.info("Audio processing done.")
-        return loaded_audio, color_mel_spectrograms
+        return loaded_audio, color_mel_spectrograms, restored_audio
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -125,27 +134,28 @@ if __name__ == "__main__":
         file.close()
         logger.info("Statistics saved.")
     else:
-        audio, color_mel_spectrograms = audio_processor.process()
-        
+        data = audio_processor.process()
+
         id = 0
         digits = 5
         logger.info("Saving dataset.")
-        for audio_data in  tqdm(list(zip(audio, color_mel_spectrograms)), leave=False):
-
+        for audio_data in  tqdm(list(zip(data[0],data[1],data[2])), leave=False):
+        
             # Get items
-            audio_waveform, color_spec = audio_data
+            audio, color_spec, restored_audio = audio_data
 
             # Get ID
             id_string = str(id).zfill(digits)
 
             # Save audio
-            soundfile.write(os.path.join(args.output_dir, f"audio_{id_string}.wav"), audio_waveform.get_audio(), config.audio_parameters.sample_rate)
+            soundfile.write(os.path.join(args.output_dir, f"audio_{id_string}.wav"), audio.get_audio(), config.audio_parameters.sample_rate)
 
             # Save color spectrogram
-            plt.imsave(os.path.join(args.output_dir, f"spec_color_{id_string}.png"), color_spec.mel_spectrogram_data)       
+            plt.imsave(os.path.join(args.output_dir, f"spec_color_{id_string}.png"), color_spec.mel_spectrogram_data) 
+
+            # Save audio
+            soundfile.write(os.path.join(args.output_dir, f"audio_restored_{id_string}.wav"), restored_audio.get_audio(), config.audio_parameters.sample_rate)      
 
             id += 1
 
         logger.info("Dataset saved.")
-        logger.info(f"{len(audio)} audio files saved.")
-        logger.info(f"{len(color_mel_spectrograms)} color mel spectrograms saved.")
