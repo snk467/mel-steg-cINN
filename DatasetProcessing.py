@@ -2,6 +2,8 @@ import argparse
 import random
 import soundfile
 import os
+
+import torch
 import Exceptions
 import Configuration
 import Normalization 
@@ -22,7 +24,6 @@ class AudioDatasetProcessor:
 
         # Initialize RNG
         random.seed(1234)
-        random.shuffle(self.audio_files)
 
     def load_audio_files(self, audio_files):
         loaded_audio = []
@@ -97,7 +98,7 @@ class AudioDatasetProcessor:
 
         loaded_audio = self.load_audio_files(self.audio_files)
 
-        color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio)
+        color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio, color="lab")
 
         restored_audio = self.restore_audio(color_mel_spectrograms)
 
@@ -151,7 +152,7 @@ if __name__ == "__main__":
             soundfile.write(os.path.join(args.output_dir, f"audio_{id_string}.wav"), audio.get_audio(), config.audio_parameters.sample_rate)
 
             # Save color spectrogram
-            plt.imsave(os.path.join(args.output_dir, f"spec_color_{id_string}.png"), color_spec.mel_spectrogram_data) 
+            torch.save(torch.from_numpy(color_spec.mel_spectrogram_data), os.path.join(args.output_dir, f"spec_color_{id_string}.pt"))
 
             # Save audio
             soundfile.write(os.path.join(args.output_dir, f"audio_restored_{id_string}.wav"), restored_audio.get_audio(), config.audio_parameters.sample_rate)      

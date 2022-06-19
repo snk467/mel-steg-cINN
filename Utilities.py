@@ -6,11 +6,13 @@ import Normalization
 import numpy as np
 from Exceptions import ArgumentError
 from LUT import Colormap
+from skimage import color as Color
+
 logger = logging.getLogger(__name__)
 
 class Audio:
 
-    __supported_color_representations = ["rgb"]
+    supported_color_representations = ["rgb", "lab"]
 
     def __init__(self, audio, config):
         # Take segment - pad if too small
@@ -68,8 +70,19 @@ class Audio:
             color_map = Colormap.from_colormap(colormap)
             mel_spectrogram_data = color_map.get_color_from_2D_array(mel_spectrogram_data)
 
-        if color in Audio.__supported_color_representations:
-            pass
+        color_lower = color.lower()
+        if color_lower in Audio.supported_color_representations:
+            # Colormap should provide rgb image in other case data is in [0.0,1.0] range.
+            if mel_spectrogram_data.ndim != 3:
+                mel_spectrogram_data = Color.gray2rgb(mel_spectrogram_data)
+
+            if color_lower == "rgb":
+                # Colormap should provide rgb image
+                pass
+            elif color_lower == "lab":
+                mel_spectrogram_data = Color.rgb2lab(mel_spectrogram_data)
+            else: 
+                raise NotImplementedError
 
         return MelSpectrogram.from_color(mel_spectrogram_data, normalized, color, colormap, self.config)
 
@@ -78,10 +91,17 @@ class MelSpectrogram:
         self.mel_spectrogram_data = mel_spectrogram_data
         self.normalized = normalized
         self.range = range
+            
+        if (color is None) != (colormap is None):
+            logger.error("Both color and colormap must be None or set")
+            raise ArgumentError
+
         self.color = color
         self.colormap = colormap
         self.config = config
         self.audio = None
+
+        
 
     @classmethod
     def from_color(cls, mel_spectrogram_data, normalized, color, colormap, config):
@@ -101,9 +121,13 @@ class MelSpectrogram:
         if mel_spectrogram_data is None:
             return None
 
-        # TODO: Convert color to RGB if needed
-        if self.color != "rgb":
-            raise NotImplementedError
+        if self.color is not None and self.color != "rgb":
+            color_lower = self.color.lower()
+            if color_lower in Audio.supported_color_representations:
+                if color_lower == "lab":
+                    mel_spectrogram_data = Color.lab2rgb(mel_spectrogram_data)
+                else: 
+                    raise NotImplementedError        
 
         # Convert color back to values
         if self.colormap is not None:
