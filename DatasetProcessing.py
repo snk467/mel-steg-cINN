@@ -92,7 +92,7 @@ class AudioDatasetProcessor:
         return mean, standard_deviation, min, max
 
 
-    def process(self):
+    def process(self, restore_audio=True):
 
         self.logger.info("Processing audio.")
 
@@ -100,16 +100,19 @@ class AudioDatasetProcessor:
 
         color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio, color="lab")
 
-        restored_audio = self.restore_audio(color_mel_spectrograms)
-
-        self.logger.info("Audio processing done.")
-        return loaded_audio, color_mel_spectrograms, restored_audio
+        if restore_audio:
+            restored_audio = self.restore_audio(color_mel_spectrograms)
+            return loaded_audio, color_mel_spectrograms, restored_audio
+        else:
+            self.logger.info("Audio processing done.")
+            return loaded_audio, color_mel_spectrograms        
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', "--input_dir", type=str, required=True, help='Input directory.')
     parser.add_argument('-o', '--output_dir', type=str, required=True, help='Output directory.')
     parser.add_argument('-s', '--statistics', action="store_true", help='Calculate mel spectrograms statistics.')
+    parser.add_argument('-r', '--restore', action="store_true", help='Restore audio from generated tensors.')
     args = parser.parse_args()
     return args
 
@@ -135,15 +138,23 @@ if __name__ == "__main__":
         file.close()
         logger.info("Statistics saved.")
     else:
-        data = audio_processor.process()
+        data = audio_processor.process(args.restore)
 
         id = 0
         digits = 5
         logger.info("Saving dataset.")
-        for audio_data in  tqdm(list(zip(data[0],data[1],data[2])), leave=False):
+        if args.restore:
+            dataset = list(zip(data[0],data[1],data[2]))
+        else:
+            dataset = list(zip(data[0],data[1]))
+
+        for audio_data in  tqdm(dataset, leave=False):
         
             # Get items
-            audio, color_spec, restored_audio = audio_data
+            if args.restore:
+                audio, color_spec, restored_audio = audio_data
+            else:
+                audio, color_spec = audio_data
 
             # Get ID
             id_string = str(id).zfill(digits)
@@ -152,10 +163,11 @@ if __name__ == "__main__":
             soundfile.write(os.path.join(args.output_dir, f"audio_{id_string}.wav"), audio.get_audio(), config.audio_parameters.sample_rate)
 
             # Save color spectrogram
-            torch.save(torch.from_numpy(color_spec.mel_spectrogram_data), os.path.join(args.output_dir, f"spec_color_{id_string}.pt"))
+            torch.save(torch.from_numpy(color_spec.mel_spectrogram_data), os.path.join(args.output_dir, f"spec_color_{color_spec.color}_{id_string}.pt"))
 
             # Save audio
-            soundfile.write(os.path.join(args.output_dir, f"audio_restored_{id_string}.wav"), restored_audio.get_audio(), config.audio_parameters.sample_rate)      
+            if args.restore:
+                soundfile.write(os.path.join(args.output_dir, f"audio_restored_{id_string}.wav"), restored_audio.get_audio(), config.audio_parameters.sample_rate)      
 
             id += 1
 
