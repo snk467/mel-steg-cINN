@@ -1,29 +1,37 @@
 import random
-from Noise import GaussianNoise
 from torch.utils.data import Dataset
 from Utilities import *
 from Normalization import *
+import torch
 
 class SpectrogramDataset(Dataset):
 
-    def __init__(self, audo_files_directory, segment_length, sample_rate, stft_parameters):
-        self.audio_files = get_audio_files(audo_files_directory)
-        self.stft_parameters = stft_parameters
-        self.segment_length = segment_length
-        self.sample_rate = sample_rate
+    def __init__(self, dataset_directory, augmentor=None):
+        files = get_files(dataset_directory)
+
+        # Filter spectrograms from files
+        self.spectrograms = list(filter(lambda k: 'spec_color_lab' in k, files))  
 
         # Initialize RNG
         random.seed(1234)
-        random.shuffle(self.audio_files)
+        random.shuffle(self.spectrograms)
 
         # Augmentation
-        self.augment = GaussianNoise([0], [0.01])
+        self.augment = augmentor
 
     def __getitem__(self, index):
-        raise NotImplementedError
 
+        # Load file as tensor
+        spectrogram_tensor = torch.load(self.spectrograms[index])
+
+        # Augment the tensor
+        if self.augmentor is not None:
+            spectrogram_tensor = self.augmentor(spectrogram_tensor)
+
+        # Return the tensor
+        return spectrogram_tensor
 
     def __len__(self):
-        return len(self.audio_files)
+        return len(self.spectrograms)
 
 

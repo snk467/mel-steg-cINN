@@ -18,7 +18,7 @@ class AudioDatasetProcessor:
     def __init__(self, audo_files_directory, config):
         self.config = config
 
-        self.audio_files = get_audio_files(audo_files_directory)
+        self.audio_files = get_files(audo_files_directory)
 
         self.logger = Logger.get_logger(__name__)
 

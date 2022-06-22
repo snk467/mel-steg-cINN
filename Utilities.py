@@ -151,14 +151,14 @@ class MelSpectrogram:
 
         return Audio(audio, self.config)
 
-def get_audio_files(audio_files_directory):
-    audio_files = []
-    for filename in os.listdir(audio_files_directory):
-        path = os.path.join(audio_files_directory, filename)
+def get_files(files_directory):
+    files = []
+    for filename in os.listdir(files_directory):
+        path = os.path.join(files_directory, filename)
         if os.path.isfile(path):
-            audio_files.append(path)
+            files.append(path)
 
-    return np.array(audio_files)
+    return np.array(files)
 
 def load_audio(file_path):
     audio, sample_rate = librosa.load(file_path, sr=None)
