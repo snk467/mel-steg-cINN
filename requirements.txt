@@ -2,8 +2,8 @@ librosa==0.9.1
 matplotlib==3.5.2
 munch==2.5.0
 numpy==1.21.6
-PyYAML==6.0
+PyYAML==5.0
 scikit_image==0.19.2
 SoundFile==0.10.3.post1
-torch==1.11.0
+torch>=1.11.0
 tqdm==4.64.0
