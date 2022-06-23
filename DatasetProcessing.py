@@ -98,7 +98,7 @@ class AudioDatasetProcessor:
 
         loaded_audio = self.load_audio_files(self.audio_files)
 
-        color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio, color="lab")
+        color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio, color="rgb")
 
         if restore_audio:
             restored_audio = self.restore_audio(color_mel_spectrograms)
@@ -160,10 +160,14 @@ if __name__ == "__main__":
             id_string = str(id).zfill(digits)
 
             # Save audio
-            soundfile.write(os.path.join(args.output_dir, f"audio_{id_string}.wav"), audio.get_audio(), config.audio_parameters.sample_rate)
+            soundfile.write(os.path.join(args.output_dir, f"audio_original_{id_string}.wav"), audio.get_audio(), config.audio_parameters.sample_rate)
 
             # Save color spectrogram
-            torch.save(torch.from_numpy(color_spec.mel_spectrogram_data), os.path.join(args.output_dir, f"spec_color_{color_spec.color}_{id_string}.pt"))
+            file_name = f"spectrogram_color_{color_spec.color}_{id_string}.png"
+            if color_spec.color == "rgb":
+                plt.imsave(os.path.join(args.output_dir, file_name), color_spec.mel_spectrogram_data)
+            else:
+                torch.save(torch.from_numpy(color_spec.mel_spectrogram_data), os.path.join(args.output_dir, file_name))
 
             # Save audio
             if args.restore:

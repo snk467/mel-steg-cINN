@@ -96,7 +96,7 @@ class MelSpectrogram:
             logger.error("Both color and colormap must be None or set")
             raise ArgumentError
 
-        self.color = color
+        self.color = color if color is None else color.lower()
         self.colormap = colormap
         self.config = config
         self.audio = None
@@ -122,9 +122,9 @@ class MelSpectrogram:
             return None
 
         if self.color is not None and self.color != "rgb":
-            color_lower = self.color.lower()
-            if color_lower in Audio.supported_color_representations:
-                if color_lower == "lab":
+            color = self.color
+            if color in Audio.supported_color_representations:
+                if color == "lab":
                     mel_spectrogram_data = Color.lab2rgb(mel_spectrogram_data)
                 else: 
                     raise NotImplementedError        
