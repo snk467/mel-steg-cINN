@@ -1,11 +1,14 @@
+'on':
+  github:
+    branches:
+      only: main
 jobs:
-  job-1:
-    inputs:
-      my-dataset:
-        type: dataset
-        with:
-          ref: ds59h0ssl60rrf2
-      uses: container@v1
-      with:
-      image: bash:5
-      args: ["bash", "-c", "ls /inputs/my-dataset"]
+  CloneRepo:
+    resources:
+      instance-type: C5
+    outputs:
+      repo:
+        type: volume
+    uses: git-checkout@v1
+    with:
+      url: context.event.github.url
