@@ -1,10 +1,11 @@
-job-1:
-  inputs:
-    my-dataset:
-      type: dataset
+jobs:
+  job-1:
+    inputs:
+      my-dataset:
+        type: dataset
+        with:
+          ref: ds59h0ssl60rrf2
+      uses: container@v1
       with:
-        ref: ds59h0ssl60rrf2
-    uses: container@v1
-    with:
-    image: bash:5
-    args: ["bash", "-c", "ls /inputs/my-dataset"]
+      image: bash:5
+      args: ["bash", "-c", "ls /inputs/my-dataset"]
