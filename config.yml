@@ -1,11 +1,13 @@
 audio_parameters:
-  segment_length: 100000
+  segment_length: 25400
   sample_rate: 22050
-  filter_length: 1024
-  hop_length: 256
-  window_length: 1024
-  mean: -36.30719849302548
-  standard_deviation: 17.732551603649963
-  global_min: -1.9711308479309082
-  global_max: 3.7626562118530273
-train_configuration:
+  hop_length: 200
+  window_length: 800
+  n_mels: 128
+  mean: -37.334929861258004
+  standard_deviation: 17.89131129988776
+  global_min: -2.50209641456604
+  global_max: 3.608585834503174
+spectrogram_dataset:
+  spectrogram_files_directory:
+  add_noise: False

@@ -28,8 +28,7 @@ class AudioDatasetProcessor:
     def load_audio_files(self, audio_files):
         loaded_audio = []
 
-        self.logger.info("Loading audio files.")
-        for audio_file in tqdm(audio_files, leave=False):
+        for audio_file in tqdm(audio_files, leave=False, desc="Loading audio files"):
             audio, sample_rate = load_audio(audio_file)
 
             if sample_rate != self.config.sample_rate:
@@ -39,31 +38,24 @@ class AudioDatasetProcessor:
 
             loaded_audio.append(audio)
 
-        self.logger.info("Audio files loaded.")
         return loaded_audio
 
     def get_color_mel_spectrograms(self, loaded_audio, normalized=True, color="rgb", colormap="parula"):
         mel_spectrograms = []
-        self.logger.info("Calculating color mel spectrograms.")
-        for audio in tqdm(loaded_audio, leave=False):
+        for audio in tqdm(loaded_audio, leave=False, desc="Calculating color mel spectrograms"):
             mel_spectrograms.append(audio.get_color_mel_spectrogram(normalized=normalized, color=color, colormap=colormap))
-        self.logger.info("Color mel spectrograms calculated.")
         return mel_spectrograms
 
     def get_mel_spectrograms(self, loaded_audio, normalized=True, range=(0.0,1.0)):
         mel_spectrograms = []
-        self.logger.info("Calculating mel spectrograms.")
-        for audio in tqdm(loaded_audio, leave=False):
+        for audio in tqdm(loaded_audio, leave=False, desc="Calculating mel spectrograms"):
             mel_spectrograms.append(audio.get_mel_spectrogram(normalized=normalized, range=range))
-        self.logger.info("Mel spectrograms calculated.")
         return mel_spectrograms
 
     def restore_audio(self, mel_spectrograms):
         audio = []
-        self.logger.info("Restoring audio.")
-        for mel_spectrogram in tqdm(mel_spectrograms, leave=False):
+        for mel_spectrogram in tqdm(mel_spectrograms, leave=False, desc="Restoring audio"):
             audio.append(mel_spectrogram.get_audio())
-        self.logger.info("Audio restored.")
         return audio
 
     def get_statistics(self):
@@ -91,21 +83,60 @@ class AudioDatasetProcessor:
 
         return mean, standard_deviation, min, max
 
-
-    def process(self, restore_audio=True):
-
+    def process(self, args):
         self.logger.info("Processing audio.")
+        initial_id = 0
+        batch_size = 100
+        
+        for audio_files_batch in tqdm(np.array_split(self.audio_files, 1 if self.audio_files.size < batch_size else self.audio_files.size // batch_size), leave=False, desc="Precessing audio files batches"):
+            loaded_audio = self.load_audio_files(audio_files_batch)
 
-        loaded_audio = self.load_audio_files(self.audio_files)
+            color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio, color=args.color)
 
-        color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio, color="rgb")
+            restored_audio = None
+            if args.restore:
+                restored_audio = self.restore_audio(color_mel_spectrograms)
+            else:                
+                loaded_audio, color_mel_spectrograms  
 
-        if restore_audio:
-            restored_audio = self.restore_audio(color_mel_spectrograms)
-            return loaded_audio, color_mel_spectrograms, restored_audio
+            self.save_data(args, initial_id, loaded_audio, color_mel_spectrograms, restored_audio)     
+            initial_id += audio_files_batch.size
+
+        self.logger.info("Audio processing done.")
+
+    def save_data(self, args, initial_id, loaded_audio, color_mel_spectrograms, restored_audio=None):
+        digits = 5
+        id = initial_id
+        if restored_audio is not None:
+            data = list(zip(loaded_audio, color_mel_spectrograms, restored_audio))
         else:
-            self.logger.info("Audio processing done.")
-            return loaded_audio, color_mel_spectrograms        
+            data = list(zip(loaded_audio, color_mel_spectrograms))
+
+        for audio_data in  tqdm(data, leave=False, desc="Saving files"):
+            # Get items
+            if restored_audio is not None:
+                audio, color_spec, restored_audio = audio_data
+            else:
+                audio, color_spec = audio_data
+
+            # Get ID
+            id_string = str(id).zfill(digits)
+
+            # Save audio
+            soundfile.write(os.path.join(args.output_dir, f"audio_original_{id_string}.wav"), audio.get_audio(), self.config.sample_rate)
+
+            # Save color spectrogram
+            file_name = f"spectrogram_color_{color_spec.color}_{id_string}"
+            if color_spec.color == "rgb":
+                plt.imsave(os.path.join(args.output_dir, f"{file_name}.png"), color_spec.mel_spectrogram_data)
+            else:
+                torch.save(torch.from_numpy(color_spec.mel_spectrogram_data), os.path.join(args.output_dir, f"{file_name}.pt"))
+
+            # Save audio
+            if args.restore:
+                soundfile.write(os.path.join(args.output_dir, f"audio_restored_{id_string}.wav"), restored_audio.get_audio(), self.config.sample_rate)      
+
+            id += 1
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -113,6 +144,7 @@ def get_args():
     parser.add_argument('-o', '--output_dir', type=str, required=True, help='Output directory.')
     parser.add_argument('-s', '--statistics', action="store_true", help='Calculate mel spectrograms statistics.')
     parser.add_argument('-r', '--restore', action="store_true", help='Restore audio from generated tensors.')
+    parser.add_argument('-c', '--color', type=str, help='Spectrograms color format.', default="rgb")
     args = parser.parse_args()
     return args
 
@@ -138,41 +170,4 @@ if __name__ == "__main__":
         file.close()
         logger.info("Statistics saved.")
     else:
-        data = audio_processor.process(args.restore)
-
-        id = 0
-        digits = 5
-        logger.info("Saving dataset.")
-        if args.restore:
-            dataset = list(zip(data[0],data[1],data[2]))
-        else:
-            dataset = list(zip(data[0],data[1]))
-
-        for audio_data in  tqdm(dataset, leave=False):
-        
-            # Get items
-            if args.restore:
-                audio, color_spec, restored_audio = audio_data
-            else:
-                audio, color_spec = audio_data
-
-            # Get ID
-            id_string = str(id).zfill(digits)
-
-            # Save audio
-            soundfile.write(os.path.join(args.output_dir, f"audio_original_{id_string}.wav"), audio.get_audio(), config.audio_parameters.sample_rate)
-
-            # Save color spectrogram
-            file_name = f"spectrogram_color_{color_spec.color}_{id_string}.png"
-            if color_spec.color == "rgb":
-                plt.imsave(os.path.join(args.output_dir, file_name), color_spec.mel_spectrogram_data)
-            else:
-                torch.save(torch.from_numpy(color_spec.mel_spectrogram_data), os.path.join(args.output_dir, file_name))
-
-            # Save audio
-            if args.restore:
-                soundfile.write(os.path.join(args.output_dir, f"audio_restored_{id_string}.wav"), restored_audio.get_audio(), config.audio_parameters.sample_rate)      
-
-            id += 1
-
-        logger.info("Dataset saved.")
+        audio_processor.process(args)

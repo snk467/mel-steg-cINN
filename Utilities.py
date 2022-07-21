@@ -37,6 +37,7 @@ class Audio:
 
         """
         spectrogram = librosa.feature.melspectrogram(y=self.audio, 
+                                                    n_mels=self.config.n_mels,
                                                     sr=self.config.sample_rate,
                                                     n_fft=self.config.window_length,
                                                     hop_length=self.config.hop_length)   
@@ -145,9 +146,9 @@ class MelSpectrogram:
         # Inverse mel spectrogram
         mel_spectrogram_data = librosa.db_to_power(mel_spectrogram_data)
         audio = librosa.feature.inverse.mel_to_audio(M=mel_spectrogram_data, 
-                                            sr=self.config.sample_rate,
-                                            n_fft=self.config.window_length,
-                                            hop_length=self.config.hop_length)
+                                                    sr=self.config.sample_rate,
+                                                    n_fft=self.config.window_length,
+                                                    hop_length=self.config.hop_length)
 
         return Audio(audio, self.config)
 
