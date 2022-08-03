@@ -8,6 +8,12 @@ audio_parameters:
   standard_deviation: 17.89131129988776
   global_min: -2.50209641456604
   global_max: 3.608585834503174
-spectrogram_dataset:
-  spectrogram_files_directory:
-  add_noise: False
+unet_training:
+  spectrogram_files_directory: "/storage/data/Spectrograms"
+  batch_checkpoint: 100
+  parameters:
+    add_noise: False
+    batch_size: 10
+    learning_rate: 0.001
+    momentum: 0.9
+    epochs: 5
