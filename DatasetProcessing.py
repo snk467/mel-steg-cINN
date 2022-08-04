@@ -1,9 +1,7 @@
 import argparse
-import random
 import soundfile
 import os
-
-import torch
+import random
 import Exceptions
 import Configuration
 import Normalization 
@@ -22,9 +20,6 @@ class AudioDatasetProcessor:
 
         self.logger = Logger.get_logger(__name__)
 
-        # Initialize RNG
-        random.seed(1234)
-
     def load_audio_files(self, audio_files):
         loaded_audio = []
 
@@ -40,10 +35,10 @@ class AudioDatasetProcessor:
 
         return loaded_audio
 
-    def get_color_mel_spectrograms(self, loaded_audio, normalized=True, color="rgb", colormap="parula"):
+    def get_color_mel_spectrograms(self, loaded_audio, normalized=True, colormap="parula_rgb"):
         mel_spectrograms = []
         for audio in tqdm(loaded_audio, leave=False, desc="Calculating color mel spectrograms"):
-            mel_spectrograms.append(audio.get_color_mel_spectrogram(normalized=normalized, color=color, colormap=colormap))
+            mel_spectrograms.append(audio.get_color_mel_spectrogram(normalized=normalized, colormap=colormap))
         return mel_spectrograms
 
     def get_mel_spectrograms(self, loaded_audio, normalized=True, range=(0.0,1.0)):
@@ -91,7 +86,7 @@ class AudioDatasetProcessor:
         for audio_files_batch in tqdm(np.array_split(self.audio_files, 1 if self.audio_files.size < batch_size else self.audio_files.size // batch_size), leave=False, desc="Precessing audio files batches"):
             loaded_audio = self.load_audio_files(audio_files_batch)
 
-            color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio, color=args.color)
+            color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio, colormap=args.colormap)
 
             restored_audio = None
             if args.restore:
@@ -126,15 +121,17 @@ class AudioDatasetProcessor:
             soundfile.write(os.path.join(args.output_dir, f"audio_original_{id_string}.wav"), audio.get_audio(), self.config.sample_rate)
 
             # Save color spectrogram
-            file_name = f"spectrogram_color_{color_spec.color}_{id_string}"
-            if color_spec.color == "rgb":
+            colormap_string = str(color_spec.colormap).lower()
+            file_name = f"spectrogram_color_{colormap_string}_{id_string}"
+            if "rgb" in str(color_spec.colormap):
                 plt.imsave(os.path.join(args.output_dir, f"{file_name}.png"), color_spec.mel_spectrogram_data)
             else:
-                torch.save(torch.from_numpy(color_spec.mel_spectrogram_data), os.path.join(args.output_dir, f"{file_name}.pt"))
+                with open(os.path.join(args.output_dir, f"{file_name}.npy"), 'wb') as file:
+                    np.save(file, color_spec.mel_spectrogram_data)
 
             # Save audio
             if args.restore:
-                soundfile.write(os.path.join(args.output_dir, f"audio_restored_{id_string}.wav"), restored_audio.get_audio(), self.config.sample_rate)      
+                soundfile.write(os.path.join(args.output_dir, f"audio_restored_{colormap_string}_{id_string}.wav"), restored_audio.get_audio(), self.config.sample_rate)      
 
             id += 1
 
@@ -144,11 +141,14 @@ def get_args():
     parser.add_argument('-o', '--output_dir', type=str, required=True, help='Output directory.')
     parser.add_argument('-s', '--statistics', action="store_true", help='Calculate mel spectrograms statistics.')
     parser.add_argument('-r', '--restore', action="store_true", help='Restore audio from generated tensors.')
-    parser.add_argument('-c', '--color', type=str, help='Spectrograms color format.', default="rgb")
+    parser.add_argument('-c', '--colormap', type=str, help='Spectrograms colormap.', default=None)
     args = parser.parse_args()
     return args
 
-if __name__ == "__main__":
+if __name__ == "__main__":   
+    # Initialize RNG
+    random.seed(1234)
+
     # Get arguments
     args = get_args()
 
