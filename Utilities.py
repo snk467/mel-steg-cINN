@@ -6,13 +6,11 @@ import Normalization
 import numpy as np
 from Exceptions import ArgumentError
 from LUT import Colormap
-from skimage import color as Color
+from skimage import color
 
 logger = logging.getLogger(__name__)
 
 class Audio:
-
-    supported_color_representations = ["rgb", "lab"]
 
     def __init__(self, audio, config):
         # Take segment - pad if too small
@@ -55,7 +53,7 @@ class Audio:
 
         return MelSpectrogram.from_value(mel_spectrogram, normalized, range, self.config)
 
-    def get_color_mel_spectrogram(self, normalized=False, color="rgb", colormap="parula"):
+    def get_color_mel_spectrogram(self, normalized=False, colormap=None):
         """
         
         Calculate image-represented mel-spectrogram of audio waveform. 
@@ -71,46 +69,24 @@ class Audio:
             color_map = Colormap.from_colormap(colormap)
             mel_spectrogram_data = color_map.get_color_from_2D_array(mel_spectrogram_data)
 
-        color_lower = color.lower()
-        if color_lower in Audio.supported_color_representations:
-            # Colormap should provide rgb image in other case data is in [0.0,1.0] range.
-            if mel_spectrogram_data.ndim != 3:
-                mel_spectrogram_data = Color.gray2rgb(mel_spectrogram_data)
-
-            if color_lower == "rgb":
-                # Colormap should provide rgb image
-                pass
-            elif color_lower == "lab":
-                mel_spectrogram_data = Color.rgb2lab(mel_spectrogram_data)
-            else: 
-                raise NotImplementedError
-
-        return MelSpectrogram.from_color(mel_spectrogram_data, normalized, color, colormap, self.config)
+        return MelSpectrogram.from_color(mel_spectrogram_data, normalized, colormap, self.config)
 
 class MelSpectrogram:
-    def __init__(self, mel_spectrogram_data, normalized, config, range=None, color=None, colormap=None):
+    def __init__(self, mel_spectrogram_data, normalized, config, range=None, colormap=None):
         self.mel_spectrogram_data = mel_spectrogram_data
         self.normalized = normalized
-        self.range = range
-            
-        if (color is None) != (colormap is None):
-            logger.error("Both color and colormap must be None or set")
-            raise ArgumentError
-
-        self.color = color if color is None else color.lower()
+        self.range = range 
         self.colormap = colormap
         self.config = config
-        self.audio = None
-
-        
+        self.audio = None        
 
     @classmethod
-    def from_color(cls, mel_spectrogram_data, normalized, color, colormap, config):
-        return cls(mel_spectrogram_data, normalized, config, range=(0.0,1.0), color=color, colormap=colormap)
+    def from_color(cls, mel_spectrogram_data, normalized, colormap, config):
+        return cls(mel_spectrogram_data, normalized, config, range=(0.0,1.0), colormap=colormap)
 
     @classmethod
     def from_value(cls, mel_spectrogram_data, normalized, range, config):
-        return cls(mel_spectrogram_data, normalized, config, range=range, color=None, colormap=None)
+        return cls(mel_spectrogram_data, normalized, config, range=range, colormap=None)
 
     def get_audio(self):
         
@@ -121,14 +97,6 @@ class MelSpectrogram:
 
         if mel_spectrogram_data is None:
             return None
-
-        if self.color is not None and self.color != "rgb":
-            color = self.color
-            if color in Audio.supported_color_representations:
-                if color == "lab":
-                    mel_spectrogram_data = Color.lab2rgb(mel_spectrogram_data)
-                else: 
-                    raise NotImplementedError        
 
         # Convert color back to values
         if self.colormap is not None:
