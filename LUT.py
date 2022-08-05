@@ -839,21 +839,57 @@ class Colormap:
         idx = self.__find_nearest_index_value(value)
         return self.colors[idx]
 
-    def get_color_from_2D_array(self, array: np.ndarray):
-        img = np.zeros(shape=(array.shape[0],array.shape[1], 3), dtype=float)
+    def get_colors_from_values(self, array_of_values: np.ndarray):
+        img = np.zeros(shape=(array_of_values.shape[0],array_of_values.shape[1], 3), dtype=float)
 
-        for x in range(array.shape[0]):
-            for y in range(array.shape[1]):
-                img[x,y] = self.get_color(array[x,y])
+        for x in range(array_of_values.shape[0]):
+            for y in range(array_of_values.shape[1]):
+                img[x,y] = self.get_color(array_of_values[x,y])
 
         return img
 
-    def get_value_from_image(self, image: np.ndarray):
-        array = np.zeros(shape=(image.shape[0],image.shape[1]), dtype=float)
+    def get_colors_from_indexes(self, indexes: np.ndarray):
+        colors = np.zeros(shape=(indexes.shape[0],indexes.shape[1], 3), dtype=float)
 
-        for x in range(image.shape[0]):
-            for y in range(image.shape[1]):
-                array[x,y] = self.get_inverse_value(image[x,y])
+        for x in range(indexes.shape[0]):
+            for y in range(indexes.shape[1]):
+                colors[x,y] = self.colors[indexes[x,y]]
+
+        return colors
+
+    def get_indexes_from_values(self, values: np.ndarray):
+        indexes = np.zeros(shape=(values.shape[0],values.shape[1]), dtype=int)
+
+        for x in range(values.shape[0]):
+            for y in range(values.shape[1]):
+                indexes[x,y] = self.__find_nearest_index_value(values[x,y])
+
+        return indexes
+
+    def get_indexes_from_colors(self, colors: np.ndarray):
+        indexes = np.zeros(shape=(colors.shape[0],colors.shape[1]), dtype=int)
+
+        for x in range(colors.shape[0]):
+            for y in range(colors.shape[1]):
+                indexes[x,y] = self.__find_nearest_index_color(colors[x,y])
+
+        return indexes
+
+    def get_values_from_indexes(self, indexes: np.ndarray):
+        array = np.zeros(shape=(indexes.shape[0],indexes.shape[1]), dtype=float)
+
+        for x in range(indexes.shape[0]):
+            for y in range(indexes.shape[1]):
+                array[x,y] = self.values[indexes[x,y]]
+
+        return array
+
+    def get_values_from_colors(self, colors: np.ndarray):
+        array = np.zeros(shape=(colors.shape[0],colors.shape[1]), dtype=float)
+
+        for x in range(colors.shape[0]):
+            for y in range(colors.shape[1]):
+                array[x,y] = self.get_inverse_value(colors[x,y])
 
         return array
 
@@ -873,3 +909,46 @@ class Colormap:
         idx = self.__find_nearest_index_value(value)
         return idx
 
+if __name__ == "__main__":
+    # LUT tests
+    import random
+
+    random.seed(1234)
+    
+    test_array_values = np.array([[random.random(), random.random(), random.random()],
+                                  [random.random(), random.random(), random.random()],
+                                  [random.random(), random.random(), random.random()]])
+
+    print("test_array_values:\n", test_array_values)
+    print()
+
+    colormap = Colormap.from_colormap("parula_norm_lab")
+
+    colors_from_values = colormap.get_colors_from_values(test_array_values)
+    print("colors_from_values:\n", colors_from_values)
+    print()
+
+    indexes_from_values = colormap.get_indexes_from_values(test_array_values)
+    print("indexes_from_values:\n", indexes_from_values)
+    print()
+
+    colors_from_indexes= colormap.get_colors_from_indexes(indexes_from_values)
+    print("colors_from_indexes:\n", colors_from_indexes)
+    print()
+
+    values_from_indexes= colormap.get_values_from_indexes(indexes_from_values)
+    print("values_from_indexes:\n", values_from_indexes)
+    print()
+
+    indexes_from_colors= colormap.get_indexes_from_colors(colors_from_values)
+    print("indexes_from_colors:\n", indexes_from_colors)
+    print()
+
+    values_from_colors= colormap.get_values_from_colors(colors_from_values)
+    print("values_from_colors:\n", values_from_colors)
+    print()
+
+    # Assertions
+    assert (indexes_from_values==indexes_from_colors).all()
+    assert (colors_from_values==colors_from_indexes).all()
+    assert (values_from_indexes==values_from_colors).all()

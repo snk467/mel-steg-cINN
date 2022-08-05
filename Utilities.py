@@ -67,7 +67,7 @@ class Audio:
 
         if colormap is not None:
             color_map = Colormap.from_colormap(colormap)
-            mel_spectrogram_data = color_map.get_color_from_2D_array(mel_spectrogram_data)
+            mel_spectrogram_data = color_map.get_colors_from_values(mel_spectrogram_data)
 
         return MelSpectrogram.from_color(mel_spectrogram_data, normalized, colormap, self.config)
 
@@ -101,7 +101,7 @@ class MelSpectrogram:
         # Convert color back to values
         if self.colormap is not None:
             colormap = Colormap.from_colormap(self.colormap)
-            mel_spectrogram_data = colormap.get_value_from_image(mel_spectrogram_data)
+            mel_spectrogram_data = colormap.get_values_from_colors(mel_spectrogram_data)
 
         # Inverse scaling
         if self.range is not None:
