@@ -1,8 +1,6 @@
-import imp
 import numpy as np
 from tqdm import tqdm
 import Logger
-from Utilities import MelSpectrogram
 
 logger = Logger.get_logger(__name__)
 
@@ -18,7 +16,7 @@ def scale_global_minmax(X, global_min=0.0, global_max=1.0, min=0.0, max=1.0):
     X_scaled = np.clip(X_scaled, a_min=min, a_max=max)
     return X_scaled
 
-def calculate_statistics(melspectrograms: list[MelSpectrogram]):
+def calculate_statistics(melspectrograms):
     count = 0
     logger.info("Calculating statistics.")
     for melspectrogram in tqdm(melspectrograms, leave=False):
@@ -55,4 +53,3 @@ def normalize(melspectrogram, mean, standard_deviation, inverse=False):
         return melspectrogram*standard_deviation + mean
     else:
         return (melspectrogram-mean) / standard_deviation
-

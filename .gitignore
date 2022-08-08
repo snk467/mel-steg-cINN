@@ -162,4 +162,9 @@ cython_debug/
 # Dataset
 /Data
 
+# Tests
 /Testy
+/unet_tests.py
+
+# Wandb
+/wandb
