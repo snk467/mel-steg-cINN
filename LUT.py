@@ -909,6 +909,9 @@ class Colormap:
         idx = self.__find_nearest_index_value(value)
         return idx
 
+    def get_colors_length(self):
+        return len(self.colors)
+
 if __name__ == "__main__":
     # LUT tests
     import random
