@@ -9,8 +9,7 @@ from Models.UNET.unet_model import UNet
 import Logger
 import munch
 
-loss_function = torch.nn.MSELoss()
-accuracy = Accuracy()
+
 
 def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
     running_metrics = prepare_metrics()
@@ -22,13 +21,17 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
     for i, data in enumerate(training_loader):
         # Every data instance is an input + label pair
         inputs, targets = data
+        
+        inputs = inputs.to(device).float()
+        targets = targets.to(device).float()
+        
 
         # Zero your gradients for every batch!
         optimizer.zero_grad()
 
         # Make predictions for this batch
         # print(inputs.shape)
-        outputs = model(inputs.float())
+        outputs = model(inputs)
 
         # Compute the loss and its gradients
         loss, metrics = gather_batch_metrics(outputs, targets)
@@ -73,7 +76,11 @@ def validate(model, validation_loader):
 
     for i, vdata in enumerate(validation_loader):
         vinputs, vtargets = vdata
-        voutputs = model(vinputs.float())
+        
+        vinputs = vinputs.to(device).float()
+        vtargets = vtargets.to(device).float()
+        
+        voutputs = model(vinputs)
 
         vloss, metrics = gather_batch_metrics(voutputs, vtargets)
 
@@ -96,7 +103,7 @@ def train(config):
     validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.parameters.batch_size, shuffle=False, num_workers=2)
 
     # Create model
-    model = UNet(n_channels=1, n_classes=256).float()
+    model = UNet(n_channels=1, n_classes=256).to(device).float()
 
     # Optimizers specified in the torch.optim package
     optimizer = torch.optim.Adam(model.parameters(), lr=config.parameters.learning_rate)
@@ -122,7 +129,7 @@ def train(config):
         wandb.log({"avg_val_loss": validation_metrics.loss, "avg_val_acc": validation_metrics.accuracy}, step=step)
 
         # Print epoch statistics
-        logger.info(f"      AVG_LOSS train {train_metrics.loss} valid {validation_metrics.loss} %")
+        logger.info(f"      AVG_LOSS train {train_metrics.loss} valid {validation_metrics.loss}")
         logger.info(f"      AVG_ACCURACY train {train_metrics.accuracy * 100} % valid {validation_metrics.accuracy * 100} %")
 
         # Log epoch duration
@@ -149,6 +156,18 @@ def prepare_metrics():
 
     return metrics
 
+def test_CUDA():
+    if torch.cuda.is_available():
+        logger.info("PyTorch is running on CUDA!")
+        logger.info(f"Number of CUDA devices: {torch.cuda.device_count()}")
+        device_id = torch.cuda.current_device()
+        logger.info(f"Device ID: {device_id}")
+        logger.info(f"Device name: {torch.cuda.get_device_name(device_id)}")
+        return True
+    else:
+        logger.warning("PyTorch is not running on CUDA!")
+        return False
+
 
 if __name__ == "__main__":
     # Get logger
@@ -161,6 +180,16 @@ if __name__ == "__main__":
     wandb.login(key='04b4aa0a2ed5be3c78c42fcf424d91250474f4ff')
     wandb.init(project="mel-steg-cINN", entity="snikiel")
     wandb.config = config.unet_training.parameters
+    
+    is_cuda = test_CUDA()
+    
+    if is_cuda:
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+        
+    loss_function = torch.nn.MSELoss().to(device)
+    accuracy = Accuracy().to(device)
 
     train(config.unet_training)
 
