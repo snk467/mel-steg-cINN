@@ -22,8 +22,8 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
         # Every data instance is an input + label pair
         inputs, targets = data
         
-        inputs = inputs.to(device).float()
-        targets = targets.to(device).float()
+        inputs = inputs.float()
+        targets = targets.float()
         
 
         # Zero your gradients for every batch!
@@ -77,8 +77,8 @@ def validate(model, validation_loader):
     for i, vdata in enumerate(validation_loader):
         vinputs, vtargets = vdata
         
-        vinputs = vinputs.to(device).float()
-        vtargets = vtargets.to(device).float()
+        vinputs = vinputs.float()
+        vtargets = vtargets.float()
         
         voutputs = model(vinputs)
 
@@ -95,8 +95,8 @@ def validate(model, validation_loader):
 
 def train(config):
     # Create datasets for training & validation
-    training_set = SpectrogramsDataset(config.spectrogram_files_directory, train=True)
-    validation_set = SpectrogramsDataset(config.spectrogram_files_directory, train=True)
+    training_set = SpectrogramsDataset(config.spectrogram_files_directory, train=True, device=device)
+    validation_set = SpectrogramsDataset(config.spectrogram_files_directory, train=True, device=device)
 
     # Create data loaders for our datasets; shuffle for training, not for validation
     training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.parameters.batch_size, shuffle=False, num_workers=2)
