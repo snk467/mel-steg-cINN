@@ -6,7 +6,10 @@ import Exceptions
 import Configuration
 import Normalization 
 import Logger
+import torch
 import matplotlib.pyplot as plt
+from zipfile import ZipFile
+import zipfile
 from Utilities import *
 from tqdm import tqdm
 logger = Logger.get_logger(__name__)
@@ -99,6 +102,14 @@ class AudioDatasetProcessor:
 
         self.logger.info("Audio processing done.")
 
+    def __prepare_labels_tensor(self, color_mapping, colormap):
+        labels = torch.zeros((colormap.get_colors_length(), color_mapping.shape[0], color_mapping.shape[1]))
+        for x in range(color_mapping.shape[0]):
+            for y in range(color_mapping.shape[1]):
+                labels[color_mapping[x, y], x, y] = 1.0
+
+        return labels
+
     def save_data(self, args, initial_id, loaded_audio, color_mel_spectrograms, restored_audio=None):
         digits = 5
         id = initial_id
@@ -122,12 +133,29 @@ class AudioDatasetProcessor:
 
             # Save color spectrogram
             colormap_string = str(color_spec.colormap).lower()
-            file_name = f"spectrogram_color_{colormap_string}_{id_string}"
-            if "rgb" in str(color_spec.colormap):
+            spectrogram_data = color_spec.mel_spectrogram_data
+
+            # Save labels if colormap is applied
+            if color_spec.colormap is not None:
+                colormap = Colormap.from_colormap(colormap_string)
+                labels_tensor = self.__prepare_labels_tensor(colormap.get_indexes_from_colors(spectrogram_data), colormap)
+                labels_file_basename= f"labels_{colormap_string}_{id_string}"
+
+                self.__save_compressed_tensor(args.output_dir, labels_tensor, labels_file_basename)
+
+            # Save spectrogram data
+            file_name = f"spectrogram_{colormap_string}_{id_string}"
+            if "rgb" in str(color_spec.colormap):                
                 plt.imsave(os.path.join(args.output_dir, f"{file_name}.png"), color_spec.mel_spectrogram_data)
+            elif "lab" in str(color_spec.colormap):             
+                L_tensor = torch.from_numpy(spectrogram_data[:,:,0])
+                L_tensor = torch.reshape(L_tensor, (1, L_tensor.shape[0], L_tensor.shape[1]))
+                L_channel_file_basename = f"spectrogram_L_channel_{colormap_string}_{id_string}"
+
+                self.__save_compressed_tensor(args.output_dir, L_tensor, L_channel_file_basename)
             else:
                 with open(os.path.join(args.output_dir, f"{file_name}.npy"), 'wb') as file:
-                    np.save(file, color_spec.mel_spectrogram_data)
+                    np.save(file, color_spec.mel_spectrogram_data) 
 
             # Save audio
             if args.restore:
@@ -135,12 +163,29 @@ class AudioDatasetProcessor:
 
             id += 1
 
+    def __save_compressed_tensor(self, dest_dir, labels_tensor, labels_file_basename):
+        labels_path =  os.path.join(dest_dir, f"{labels_file_basename}.pt")
+        zip_filename = f"{os.path.splitext(os.path.basename(labels_path))[0]}.zip"
+        zip_path = os.path.join(dest_dir, zip_filename)
+
+        torch.save(labels_tensor, labels_path)
+
+        if os.path.exists(zip_path):
+            os.remove(zip_path)
+
+        with ZipFile(zip_path, 'x', zipfile.ZIP_DEFLATED) as zipf:                    
+            zipf.write(labels_path, arcname=os.path.basename(labels_path))
+
+        os.remove(labels_path)
+        logger.debug(f"Saved tensor of shape {labels_tensor.shape} in {zip_path}.")
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', "--input_dir", type=str, required=True, help='Input directory.')
     parser.add_argument('-o', '--output_dir', type=str, required=True, help='Output directory.')
     parser.add_argument('-s', '--statistics', action="store_true", help='Calculate mel spectrograms statistics.')
     parser.add_argument('-r', '--restore', action="store_true", help='Restore audio from generated tensors.')
+    parser.add_argument('-d', '--debug', action="store_true", help='Display debug information.')
     parser.add_argument('-c', '--colormap', type=str, help='Spectrograms colormap.', default=None)
     args = parser.parse_args()
     return args
@@ -151,6 +196,9 @@ if __name__ == "__main__":
 
     # Get arguments
     args = get_args()
+
+    if args.debug:
+        Logger.enable_debug_mode()
 
     # Get configuration
     config = Configuration.load()

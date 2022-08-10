@@ -9,11 +9,11 @@ audio_parameters:
   global_min: -2.50209641456604
   global_max: 3.608585834503174
 unet_training:
-  spectrogram_files_directory: /storage/data/Spectrograms/spectrograms_norm_lab_small
-  batch_checkpoint: 2
+  spectrogram_files_directory: C:\Users\snk\Documents\REPOS\mel-steg-cINN\Testy\Output
+  batch_checkpoint: 1
   parameters:
     add_noise: False
-    batch_size: 20
+    batch_size: 5
     learning_rate: 0.01
     momentum: 0.9
     epochs: 5
