@@ -1,6 +1,5 @@
 import yaml
 import munch
-from msilib.schema import Class
 
 def load():
     config_file = open("config.yml", "r")
