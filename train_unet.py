@@ -22,8 +22,8 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
         # Every data instance is an input + label pair
         inputs, targets = data
         
-        inputs = inputs.float()
-        targets = targets.float()
+        inputs = inputs.to(device).float()
+        targets = targets.to(device).float()
         
 
         # Zero your gradients for every batch!
@@ -77,8 +77,8 @@ def validate(model, validation_loader):
     for i, vdata in enumerate(validation_loader):
         vinputs, vtargets = vdata
         
-        vinputs = vinputs.float()
-        vtargets = vtargets.float()
+        vinputs = vinputs.to(device).float()
+        vtargets = vtargets.to(device).float()
         
         voutputs = model(vinputs)
 
