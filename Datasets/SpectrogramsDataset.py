@@ -5,32 +5,42 @@ from Normalization import *
 import torch
 from PIL import Image
 import torchvision.transforms as transforms
+import Logger
 from zipfile import ZipFile
 import zipfile
         
+# Get logger
+logger = Logger.get_logger(__name__)
+
 
 class SpectrogramsDataset(Dataset):
 
-    def __init__(self, dataset_directory, train, device="cpu", colormap="parula_norm_lab", augmentor=None):
+    def __init__(self, dataset_directory, train, colormap="parula_norm_lab", augmentor=None, size=None):
         files = get_files(dataset_directory)
         self.dataset_directory = dataset_directory
 
         # Filter spectrograms from files
         self.spectrograms_L_channel = sorted(list(filter(lambda k: f"spectrogram_L_channel_{colormap}" in k and k.endswith(".zip"), files)), key = lambda filename: int(filename.replace(".", "_").split("_")[-2]))
         self.labels = sorted(list(filter(lambda k: f"labels_{colormap}" in k and k.endswith(".zip"), files)), key = lambda filename: int(filename.replace(".", "_").split("_")[-2]))         
-                             
+         
+        if size is not None and size < len(self.spectrograms_L_channel):
+            self.spectrograms_L_channel = self.spectrograms_L_channel[:size]
+            self.labels = self.labels[:size]
+            
         if train:
             dataset_range = slice(len(self.spectrograms_L_channel) // 10, len(self.spectrograms_L_channel))
             labels_range = slice(len(self.labels) // 10, len(self.labels))
         else:
             dataset_range = slice(len(self.spectrograms_L_channel) // 10)
-            labels_range = slice(len(self.labels) // 10)
+            labels_range = slice(len(self.labels) // 10)            
 
         self.spectrograms_L_channel = self.spectrograms_L_channel[dataset_range]
         self.labels = self.labels[dataset_range]
-                             
-        print(self.spectrograms_L_channel[0:10]) 
-        print(self.labels[0:10]) 
+        
+        if train:            
+            logger.info(f"Train dataset size: {self.__len__()}")            
+        else:
+            logger.info(f"Validation dataset size: {self.__len__()}")            
 
         # Augmentation
         self.augmentor = augmentor
