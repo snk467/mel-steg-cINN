@@ -9,11 +9,11 @@ audio_parameters:
   global_min: -2.50209641456604
   global_max: 3.608585834503174
 unet_training:
-  spectrogram_files_directory: /notebooks/Output
+  spectrogram_files_directory: /storage/data/Spectrograms/parula_norm_lab_spectrograms_tensors
   batch_checkpoint: 1
   parameters:
     add_noise: False
-    batch_size: 5
+    batch_size: 3
     learning_rate: 0.01
-    momentum: 0.9
-    epochs: 5
+    epochs: 250
+    dataset_size: 10 #If null then whole dataset is taken
