@@ -1,19 +1,44 @@
 audio_parameters:
-  segment_length: 25400
-  sample_rate: 22050
-  hop_length: 200
-  window_length: 800
-  n_mels: 128
-  mean: -37.334929861258004
-  standard_deviation: 17.89131129988776
-  global_min: -2.50209641456604
-  global_max: 3.608585834503174
-unet_training:
-  spectrogram_files_directory: /storage/data/Spectrograms/parula_norm_lab_spectrograms_tensors
-  batch_checkpoint: 1
-  parameters:
-    add_noise: False
-    batch_size: 3
-    learning_rate: 0.01
-    epochs: 250
-    dataset_size: 10 #If null then whole dataset is taken
+    segment_length: 25400
+    sample_rate: 22050
+    hop_length: 200
+    window_length: 800
+    n_mels: 128
+    mean: -37.334929861258004
+    standard_deviation: 17.89131129988776
+    global_min: -2.50209641456604
+    global_max: 3.608585834503174
+unet_training:    
+    global_parameters:
+        spectrogram_files_directory: /storage/data/Spectrograms/parula_norm_lab_spectrograms_tensors
+        batch_checkpoint: 2
+        add_noise: False
+        batch_size: 3
+        learning_rate: 0.01
+        epochs: 250
+        dataset_size: 10 #If null then whole dataset is taken
+    sweep_config:
+        method: 'grid'
+        metric: 
+            goal: 'minimize'
+            name: 'avg_train_loss'
+        parameters: 
+            batch_size: 
+                value: 1
+            epochs: 
+                value: 100
+            lr: 
+                values: [0.1, 0.01, 0.001]
+                #distribution: 'uniform'
+                #max: 1e-2
+                #min: 1e-4
+            enable_lr_scheduler:
+                values: [True, False]
+            loss_function:
+                value: "DiceBCELoss"
+    regular_config:
+        batch_size: 1
+        epochs: 100
+        lr: 0.1
+        enable_lr_scheduler: True
+        loss_function: "DiceBCELoss"
