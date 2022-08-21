@@ -10,7 +10,7 @@ from Models.UNET.unet_model import UNet
 from Models.eccv16 import eccv16
 import Logger
 import munch
-
+import argparse
 
 
 def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
@@ -163,7 +163,7 @@ def train(config=None):
         wandb.log({"avg epoch runtime (seconds)": avg_epoch_runtime})
 
 def accuracy(outputs, targets):
-    threshold = 0.5    
+    threshold = 0.5
     thresholded_outputs = (outputs > threshold).float() 
     return torch.all(thresholded_outputs == targets, dim=1).float().sum() / targets.sum()
     
@@ -281,6 +281,12 @@ class IoULoss(torch.nn.Module):
         return 1 - IoU
 
 if __name__ == "__main__":
+    
+    parser = argparse.ArgumentParser(description='Train UNET for mel-spectrogram colorization.')
+    parser.add_argument('--sweep', action='store_true', help='run Weights & Biases sweep')
+
+    args = parser.parse_args()
+    
     # Get logger
     logger = Logger.get_logger(__name__)
 
@@ -297,8 +303,13 @@ if __name__ == "__main__":
     else:
         device = torch.device('cpu')
     
+    # Set metrics functions
     accuracy_fuction = accuracy
+    
     global_config = config.unet_training.global_parameters
     
-    sweep_id = wandb.sweep(config.unet_training.sweep_config, project="mel-steg-cINN")
-    wandb.agent(sweep_id, function=train, count=10)
+    if args.sweep:
+        sweep_id = wandb.sweep(config.unet_training.sweep_config, project="mel-steg-cINN", entity="snikiel")
+        wandb.agent(sweep_id, function=train, count=10)
+    else:
+        train(config.unet_training.regular_config)
