@@ -135,13 +135,13 @@ class AudioDatasetProcessor:
             colormap_string = str(color_spec.colormap).lower()
             spectrogram_data = color_spec.mel_spectrogram_data
 
-            # Save labels if colormap is applied
-            if color_spec.colormap is not None:
-                colormap = Colormap.from_colormap(colormap_string)
-                labels_tensor = self.__prepare_labels_tensor(colormap.get_indexes_from_colors(spectrogram_data), colormap)
-                labels_file_basename= f"labels_{colormap_string}_{id_string}"
+            # # Save labels if colormap is applied
+            # if color_spec.colormap is not None:
+            #     colormap = Colormap.from_colormap(colormap_string)
+            #     labels_tensor = self.__prepare_labels_tensor(colormap.get_indexes_from_colors(spectrogram_data), colormap)
+            #     labels_file_basename= f"labels_{colormap_string}_{id_string}"
 
-                self.__save_compressed_tensor(args.output_dir, labels_tensor, labels_file_basename)
+            #     self.__save_compressed_tensor(args.output_dir, labels_tensor, labels_file_basename)
 
             # Save spectrogram data
             file_name = f"spectrogram_{colormap_string}_{id_string}"
@@ -151,8 +151,12 @@ class AudioDatasetProcessor:
                 L_tensor = torch.from_numpy(spectrogram_data[:,:,0])
                 L_tensor = torch.reshape(L_tensor, (1, L_tensor.shape[0], L_tensor.shape[1]))
                 L_channel_file_basename = f"spectrogram_L_channel_{colormap_string}_{id_string}"
-
                 self.__save_compressed_tensor(args.output_dir, L_tensor, L_channel_file_basename)
+
+                ab_tensor = torch.from_numpy(spectrogram_data[:,:,1:])
+                ab_tensor = torch.reshape(ab_tensor, (2, ab_tensor.shape[0], ab_tensor.shape[1]))
+                ab_channel_file_basename = f"spectrogram_ab_channels_{colormap_string}_{id_string}"
+                self.__save_compressed_tensor(args.output_dir, ab_tensor, ab_channel_file_basename)
             else:
                 with open(os.path.join(args.output_dir, f"{file_name}.npy"), 'wb') as file:
                     np.save(file, color_spec.mel_spectrogram_data) 
