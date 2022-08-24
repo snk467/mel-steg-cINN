@@ -11,7 +11,10 @@ from Models.eccv16 import eccv16
 import Logger
 import munch
 import argparse
-
+from PIL import Image        
+import torchvision.transforms as torch_trans
+import LUT
+import numpy as np
 
 def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
     running_metrics = prepare_metrics()
@@ -22,7 +25,7 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
     # index and do some intra-epoch reporting
     for i, data in enumerate(training_loader):
         # Every data instance is an input + label pairs\
-        inputs, targets = data
+        inputs, targets, _ = data
         
         inputs = inputs.to(device).float()
         targets = targets.to(device).float()
@@ -76,7 +79,7 @@ def validate(model, validation_loader):
     avg_metrics = prepare_metrics()
 
     for i, vdata in enumerate(validation_loader):
-        vinputs, vtargets = vdata
+        vinputs, vtargets, _ = vdata
         
         vinputs = vinputs.to(device).float()
         vtargets = vtargets.to(device).float()
@@ -94,7 +97,14 @@ def validate(model, validation_loader):
 
     return avg_metrics
 
-def train(config=None):
+def get_rgb_image_from_labels(labels):
+    colormap = LUT.Colormap.from_colormap("parula_rgb")  
+    indexes = torch.argmax(labels, dim=1)
+    rgb_target = colormap.get_colors_from_indexes(indexes[0].numpy())
+    img_target = toImage((rgb_target * 255).astype(np.uint8))
+    return img_target
+
+def train(config=None):    
     with wandb.init(project="mel-steg-cINN", entity="snikiel", config=config):
         config = wandb.config    
     
@@ -108,6 +118,30 @@ def train(config=None):
         training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
         validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
 
+        
+        first_batch = next(iter(training_loader))
+        print(type(first_batch))
+        print(len(first_batch))
+        inputs = first_batch[0]
+        labels = first_batch[1]
+        filename = first_batch[2]
+        print(inputs.shape)
+        print(labels.shape)        
+
+        
+        img = toImage(inputs[0]) 
+        print(f"Input ( {filename[0]} ):")
+        img.show()        
+        
+        img_target = get_rgb_image_from_labels(labels)  
+        print(f"Target ( {filename[0]} ):")
+        img_target.show()
+        
+        
+        #TODO: zamknąć prezentację danych w jednej funkcji
+        
+        
+        
         # Create model
         model = UNet(n_channels=1, n_classes=256)
         model = model.to(device).float()
@@ -185,7 +219,7 @@ def gather_batch_metrics(outputs, targets):
     # print(torch.sum(probs_outputs > 0.5))
     # print(torch.sum(targets > 0.5))
     
-    metrics.accuracy = accuracy_fuction(probs_outputs, targets)
+    metrics.accuracy = accuracy_function(probs_outputs, targets)
 
     return loss, metrics
 
@@ -216,6 +250,7 @@ def get_loss_function(loss_function_name):
         loss_func = DiceBCELoss()
     if loss_function_name == "IoULoss":
         loss_func = IoULoss()
+    #TODO: MSELoss, HuberLoss
     return loss_func
     
 class DiceLoss(torch.nn.Module):
@@ -279,6 +314,51 @@ class IoULoss(torch.nn.Module):
         IoU = (intersection + smooth)/(union + smooth)
                 
         return 1 - IoU
+    
+def prepare_globals(present_data=False):    
+    
+    # Get logger
+    global logger
+    logger = Logger.get_logger(__name__)
+
+    # Load configuration
+    global config
+    config = Configuration.load()
+
+    # Initialize Weights & Biases
+    wandb.login(key='04b4aa0a2ed5be3c78c42fcf424d91250474f4ff')
+    
+    is_cuda = test_CUDA()
+    
+    global device
+    if is_cuda:
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')   
+        
+    global toImage
+    toImage = torch_trans.ToPILImage()
+    # Set metrics functions
+    global accuracy_function
+    accuracy_function = accuracy
+    
+    global global_config
+    global_config = config.unet_training.global_parameters
+    global_config.update({'present_data': present_data})
+
+    if global_config.present_data:
+        with Image.open("/notebooks/mel-steg-cINN/Lenna_(test_image).png") as img:
+            img.show()
+        
+def run(sweep=False, present_data=False):
+    
+    prepare_globals(present_data)
+    
+    if sweep:        
+        sweep_id = wandb.sweep(config.unet_training.sweep_config, project="mel-steg-cINN", entity="snikiel")
+        wandb.agent(sweep_id, function=train, count=18)
+    else:
+        train(config.unet_training.regular_config)
 
 if __name__ == "__main__":
     
@@ -287,29 +367,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     
-    # Get logger
-    logger = Logger.get_logger(__name__)
-
-    # Load configuration
-    config = Configuration.load()
-
-    # Initialize Weights & Biases
-    wandb.login(key='04b4aa0a2ed5be3c78c42fcf424d91250474f4ff')
-    
-    is_cuda = test_CUDA()
-    
-    if is_cuda:
-        device = torch.device('cuda')
-    else:
-        device = torch.device('cpu')
-    
-    # Set metrics functions
-    accuracy_fuction = accuracy
-    
-    global_config = config.unet_training.global_parameters
-    
-    if args.sweep:
-        sweep_id = wandb.sweep(config.unet_training.sweep_config, project="mel-steg-cINN", entity="snikiel")
-        wandb.agent(sweep_id, function=train, count=10)
-    else:
-        train(config.unet_training.regular_config)
+    run(args.sweep)

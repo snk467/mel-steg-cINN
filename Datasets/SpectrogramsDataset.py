@@ -56,7 +56,7 @@ class SpectrogramsDataset(Dataset):
             L_channel_tensor = self.augmentor(L_channel_tensor)
 
         # Return tensors
-        return L_channel_tensor, labels_tensor
+        return L_channel_tensor, labels_tensor, os.path.basename(self.spectrograms_L_channel[index])
 
     def __load_tensor(self, zip_path):
         tensor_path = zip_path.replace(".zip", ".pt")
