@@ -20,22 +20,20 @@ class SpectrogramsDataset(Dataset):
         self.dataset_directory = dataset_directory
 
         # Filter spectrograms from files
-        self.spectrograms_L_channel = sorted(list(filter(lambda k: f"spectrogram_L_channel_{colormap}" in k and k.endswith(".zip"), files)), key = lambda filename: int(filename.replace(".", "_").split("_")[-2]))
-        self.labels = sorted(list(filter(lambda k: f"labels_{colormap}" in k and k.endswith(".zip"), files)), key = lambda filename: int(filename.replace(".", "_").split("_")[-2]))         
+        self.inputs = sorted(list(filter(lambda k: f"spectrogram_L_channel_{colormap}" in k and k.endswith(".zip"), files)), key = lambda filename: int(filename.replace(".", "_").split("_")[-2]))
+        self.targets = sorted(list(filter(lambda k: f"spectrogram_ab_channels_{colormap}" in k and k.endswith(".zip"), files)), key = lambda filename: int(filename.replace(".", "_").split("_")[-2]))         
          
-        if size is not None and size < len(self.spectrograms_L_channel):
-            self.spectrograms_L_channel = self.spectrograms_L_channel[:size]
-            self.labels = self.labels[:size]
+        if size is not None and size < len(self.inputs):
+            self.inputs = self.inputs[:size]
+            self.targets = self.targets[:size]
             
         if train:
-            dataset_range = slice(len(self.spectrograms_L_channel) // 10, len(self.spectrograms_L_channel))
-            labels_range = slice(len(self.labels) // 10, len(self.labels))
+            dataset_range = slice(len(self.inputs) // 10, len(self.inputs))
         else:
-            dataset_range = slice(len(self.spectrograms_L_channel) // 10)
-            labels_range = slice(len(self.labels) // 10)            
+            dataset_range = slice(len(self.inputs) // 10)        
 
-        self.spectrograms_L_channel = self.spectrograms_L_channel[dataset_range]
-        self.labels = self.labels[dataset_range]
+        self.inputs = self.inputs[dataset_range]
+        self.targets = self.targets[dataset_range]
         
         if train:            
             logger.info(f"Train dataset size: {self.__len__()}")            
@@ -48,15 +46,15 @@ class SpectrogramsDataset(Dataset):
     def __getitem__(self, index):  
 
         # Load tensors
-        L_channel_tensor = self.__load_tensor(os.path.join(self.dataset_directory , self.spectrograms_L_channel[index]))
-        labels_tensor = self.__load_tensor(os.path.join(self.dataset_directory , self.labels[index]))
+        input = self.__load_tensor(os.path.join(self.dataset_directory , self.inputs[index]))
+        target = self.__load_tensor(os.path.join(self.dataset_directory , self.targets[index]))
         
         # Augment tensor
         if self.augmentor is not None:
-            L_channel_tensor = self.augmentor(L_channel_tensor)
+            input = self.augmentor(input)
 
         # Return tensors
-        return L_channel_tensor, labels_tensor, os.path.basename(self.spectrograms_L_channel[index])
+        return input, target, os.path.basename(self.inputs[index])
 
     def __load_tensor(self, zip_path):
         tensor_path = zip_path.replace(".zip", ".pt")
@@ -73,4 +71,4 @@ class SpectrogramsDataset(Dataset):
         
 
     def __len__(self):
-        return len(self.spectrograms_L_channel)
+        return len(self.inputs)
