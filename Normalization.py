@@ -13,6 +13,7 @@ def scale_global_minmax(X, global_min=0.0, global_max=1.0, min=0.0, max=1.0):
     X_std = (X - global_min) / (global_max - global_min)
     X_scaled = X_std * (max - min) + min
 
+    # For numeric safety
     X_scaled = np.clip(X_scaled, a_min=min, a_max=max)
     return X_scaled
 
