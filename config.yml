@@ -26,7 +26,7 @@ unet_training:
             batch_size: 
                 value: 1
             epochs: 
-                value: 100
+                value: 20
             lr: 
                 values: [0.1, 0.01, 0.001]
                 #distribution: 'uniform'
@@ -35,7 +35,7 @@ unet_training:
             enable_lr_scheduler:
                 values: [True, False]
             loss_function:
-                value: "DiceBCELoss"
+                values: ["DiceBCELoss", "DiceLoss", "IoULoss"]
     regular_config:
         batch_size: 1
         epochs: 100
