@@ -7,7 +7,6 @@ from Datasets.SpectrogramsDataset import SpectrogramsDataset
 import torch.nn.functional as torch_func
 import Configuration
 from Models.UNET.unet_model import UNet
-from Models.eccv16 import eccv16
 import Logger
 import munch
 import argparse
@@ -47,10 +46,10 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
 
         # Gather data
         running_metrics.loss += loss.item()
-        running_metrics.accuracy += metrics.accuracy
+        # running_metrics.accuracy += metrics.accuracy
 
         avg_metrics.loss += loss.item()
-        avg_metrics.accuracy += metrics.accuracy
+        # avg_metrics.accuracy += metrics.accuracy
 
         # Report
         if i % global_config.batch_checkpoint == (global_config.batch_checkpoint - 1):
@@ -58,20 +57,20 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
 
             # Calculate current checkpoint metrics
             current_loss = running_metrics.loss / global_config.batch_checkpoint
-            current_accuracy = running_metrics.accuracy / global_config.batch_checkpoint
+            # current_accuracy = running_metrics.accuracy / global_config.batch_checkpoint
 
             # Log to stdout
-            logger.info(f"      batch {i + 1} loss: {current_loss} accuracy: {current_accuracy * 100} %")
+            logger.info(f"      batch {i + 1} loss: {current_loss} accuracy: {None} %")
 
             # Log to Weights & Biases
-            wandb.log({"train_loss": current_loss, "train_acc": current_accuracy, "epoch": epoch + ((i+1)/len(training_loader))}, step=step)
+            wandb.log({"train_loss": current_loss, "epoch": epoch + ((i+1)/len(training_loader))}, step=step)
 
             # Reset batch metrics
             running_metrics = prepare_metrics()
 
         if (i + 1) == len(training_loader):
             avg_metrics.loss = avg_metrics.loss / len(training_loader)
-            avg_metrics.accuracy = avg_metrics.accuracy / len(training_loader)
+            # avg_metrics.accuracy = avg_metrics.accuracy / len(training_loader)
             
     return avg_metrics, step
 
@@ -89,11 +88,11 @@ def validate(model, validation_loader):
         vloss, metrics = gather_batch_metrics(voutputs, vtargets)
 
         avg_metrics.loss += vloss.item()
-        avg_metrics.accuracy += metrics.accuracy
+        # avg_metrics.accuracy += metrics.accuracy
 
 
     avg_metrics.loss = avg_metrics.loss / len(validation_loader) 
-    avg_metrics.accuracy = avg_metrics.accuracy / len(validation_loader) 
+    # avg_metrics.accuracy = avg_metrics.accuracy / len(validation_loader) 
 
     return avg_metrics
 
@@ -180,12 +179,12 @@ def train(config=None):
             wandb.log({"learning_rate": scheduler.optimizer.param_groups[0]['lr']}, step=step)
 
             # Log to Weights & Biases
-            wandb.log({"avg_train_loss": train_metrics.loss, "avg_train_acc": train_metrics.accuracy}, step=step)
-            wandb.log({"avg_val_loss": validation_metrics.loss, "avg_val_acc": validation_metrics.accuracy}, step=step)
+            wandb.log({"avg_train_loss": train_metrics.loss}, step=step)
+            wandb.log({"avg_val_loss": validation_metrics.loss}, step=step)
 
             # Print epoch statistics
             logger.info(f"      AVG_LOSS train {train_metrics.loss} valid {validation_metrics.loss}")
-            logger.info(f"      AVG_ACCURACY train {train_metrics.accuracy * 100} % valid {validation_metrics.accuracy * 100} %")
+            # ogger.info(f"      AVG_ACCURACY train {train_metrics.accuracy * 100} % valid {validation_metrics.accuracy * 100} %")
 
             # Log epoch duration
             epoch_duration = time.time() - epoch_start_time
@@ -196,6 +195,7 @@ def train(config=None):
         avg_epoch_runtime = sum(epoch_durations) / len(epoch_durations)
         wandb.log({"avg epoch runtime (seconds)": avg_epoch_runtime})
 
+# TODO: Refactor accuracy function
 def accuracy(outputs, targets):
     threshold = 0.5
     thresholded_outputs = (outputs > threshold).float() 
@@ -206,27 +206,18 @@ def accuracy(outputs, targets):
     
 def gather_batch_metrics(outputs, targets):
     
-    probs_outputs = torch_func.softmax(outputs, dim=1)
-    
-    # print(probs_outputs.shape)
-    # print(probs_outputs[0,:,0,0])
-    # print(targets[0,:,0,0])
-    
-    loss = loss_function(probs_outputs, targets)
+    loss = loss_function(outputs, targets)
 
     metrics = munch.Munch()
-    
-    # print(torch.sum(probs_outputs > 0.5))
-    # print(torch.sum(targets > 0.5))
-    
-    metrics.accuracy = accuracy_function(probs_outputs, targets)
+
+    # metrics.accuracy = accuracy_function(outputs, targets)
 
     return loss, metrics
 
 def prepare_metrics():
     metrics = munch.Munch()
     metrics.loss = 0.0
-    metrics.accuracy = 0.0
+    # metrics.accuracy = 0.0
 
     return metrics
 
@@ -244,77 +235,14 @@ def test_CUDA():
     
 def get_loss_function(loss_function_name):
     loss_func = None
-    if loss_function_name == "DiceLoss":
-        loss_func = DiceLoss()
-    if loss_function_name == "DiceBCELoss":
-        loss_func = DiceBCELoss()
-    if loss_function_name == "IoULoss":
-        loss_func = IoULoss()
+    if loss_function_name == "MSELoss":
+        loss_func = torch.nn.MSELoss()
+    if loss_function_name == "HuberLoss":
+        loss_func = torch.nn.HuberLoss()
+
     #TODO: MSELoss, HuberLoss
     return loss_func
-    
-class DiceLoss(torch.nn.Module):
-    def __init__(self, weight=None, size_average=True):
-        super(DiceLoss, self).__init__()
 
-    def forward(self, inputs, targets, smooth=1):
-        
-        #comment out if your model contains a sigmoid or equivalent activation layer
-        # inputs = torch_func.sigmoid(inputs)       
-        
-        #flatten label and prediction tensors
-        inputs = inputs.view(-1)
-        targets = targets.view(-1)
-        
-        intersection = (inputs * targets).sum()                            
-        dice = (2.*intersection + smooth)/(inputs.sum() + targets.sum() + smooth)  
-        
-        return 1 - dice
-    
-class DiceBCELoss(torch.nn.Module):
-        
-    def __init__(self, weight=None, size_average=True):
-        super(DiceBCELoss, self).__init__()
-
-    def forward(self, inputs, targets, smooth=1):
-        
-        #comment out if your model contains a sigmoid or equivalent activation layer
-        # inputs = torch_func.sigmoid(inputs)       
-        
-        #flatten label and prediction tensors
-        inputs = inputs.view(-1)
-        targets = targets.view(-1)
-        
-        intersection = (inputs * targets).sum()                            
-        dice_loss = 1 - (2.*intersection + smooth)/(inputs.sum() + targets.sum() + smooth)  
-        BCE = torch_func.binary_cross_entropy(inputs, targets, reduction='mean')
-        Dice_BCE = BCE + dice_loss
-        
-        return Dice_BCE
-    
-class IoULoss(torch.nn.Module):
-    def __init__(self, weight=None, size_average=True):
-        super(IoULoss, self).__init__()
-
-    def forward(self, inputs, targets, smooth=1):
-        
-        #comment out if your model contains a sigmoid or equivalent activation layer
-        #inputs = F.sigmoid(inputs)       
-        
-        #flatten label and prediction tensors
-        inputs = inputs.view(-1)
-        targets = targets.view(-1)
-        
-        #intersection is equivalent to True Positive count
-        #union is the mutually inclusive area of all labels & predictions 
-        intersection = (inputs * targets).sum()
-        total = (inputs + targets).sum()
-        union = total - intersection 
-        
-        IoU = (intersection + smooth)/(union + smooth)
-                
-        return 1 - IoU
-    
 def prepare_globals(present_data=False):    
     
     # Get logger
@@ -338,9 +266,9 @@ def prepare_globals(present_data=False):
         
     global toImage
     toImage = torch_trans.ToPILImage()
-    # Set metrics functions
+    # Set metrics functions    
     global accuracy_function
-    accuracy_function = accuracy
+    accuracy_function = None
     
     global global_config
     global_config = config.unet_training.global_parameters
