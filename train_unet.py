@@ -142,14 +142,14 @@ def train(config=None):
         
         
         # Create model
-        model = UNet(n_channels=1, n_classes=256)
+        model = UNet(n_channels=1)
         model = model.to(device).float()
 
         # Optimizers specified in the torch.optim package
         optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
         
         # LR scheduler
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', verbose=True, patience=max(2, config.epochs // 10), min_lr=1e-5, factor=0.5)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', verbose=True, patience=3, min_lr=0, factor=0.1)
         
         # Define loss function
         global loss_function
@@ -284,7 +284,7 @@ def run(sweep=False, present_data=False):
     
     if sweep:        
         sweep_id = wandb.sweep(config.unet_training.sweep_config, project="mel-steg-cINN", entity="snikiel")
-        wandb.agent(sweep_id, function=train, count=18)
+        wandb.agent(sweep_id, function=train, count=20)
     else:
         train(config.unet_training.regular_config)
 
