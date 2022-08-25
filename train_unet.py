@@ -46,10 +46,10 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
 
         # Gather data
         running_metrics.loss += loss.item()
-        # running_metrics.accuracy += metrics.accuracy
+        running_metrics.accuracy += metrics.accuracy
 
         avg_metrics.loss += loss.item()
-        # avg_metrics.accuracy += metrics.accuracy
+        avg_metrics.accuracy += metrics.accuracy
 
         # Report
         if i % global_config.batch_checkpoint == (global_config.batch_checkpoint - 1):
@@ -57,20 +57,20 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
 
             # Calculate current checkpoint metrics
             current_loss = running_metrics.loss / global_config.batch_checkpoint
-            # current_accuracy = running_metrics.accuracy / global_config.batch_checkpoint
+            current_accuracy = running_metrics.accuracy / global_config.batch_checkpoint
 
             # Log to stdout
             logger.info(f"      batch {i + 1} loss: {current_loss} accuracy: {None} %")
 
             # Log to Weights & Biases
-            wandb.log({"train_loss": current_loss, "epoch": epoch + ((i+1)/len(training_loader))}, step=step)
+            wandb.log({"train_loss": current_loss, "train_acc": current_accuracy, "epoch": epoch + ((i+1)/len(training_loader))}, step=step)
 
             # Reset batch metrics
             running_metrics = prepare_metrics()
 
         if (i + 1) == len(training_loader):
             avg_metrics.loss = avg_metrics.loss / len(training_loader)
-            # avg_metrics.accuracy = avg_metrics.accuracy / len(training_loader)
+            avg_metrics.accuracy = avg_metrics.accuracy / len(training_loader)
             
     return avg_metrics, step
 
@@ -88,11 +88,11 @@ def validate(model, validation_loader):
         vloss, metrics = gather_batch_metrics(voutputs, vtargets)
 
         avg_metrics.loss += vloss.item()
-        # avg_metrics.accuracy += metrics.accuracy
+        avg_metrics.accuracy += metrics.accuracy
 
 
     avg_metrics.loss = avg_metrics.loss / len(validation_loader) 
-    # avg_metrics.accuracy = avg_metrics.accuracy / len(validation_loader) 
+    avg_metrics.accuracy = avg_metrics.accuracy / len(validation_loader) 
 
     return avg_metrics
 
@@ -179,12 +179,12 @@ def train(config=None):
             wandb.log({"learning_rate": scheduler.optimizer.param_groups[0]['lr']}, step=step)
 
             # Log to Weights & Biases
-            wandb.log({"avg_train_loss": train_metrics.loss}, step=step)
-            wandb.log({"avg_val_loss": validation_metrics.loss}, step=step)
+            wandb.log({"avg_train_loss": train_metrics.loss, "avg_train_acc": train_metrics.accuracy}, step=step)
+            wandb.log({"avg_val_loss": validation_metrics.loss, "avg_val_acc": validation_metrics.accuracy}, step=step)
 
             # Print epoch statistics
             logger.info(f"      AVG_LOSS train {train_metrics.loss} valid {validation_metrics.loss}")
-            # ogger.info(f"      AVG_ACCURACY train {train_metrics.accuracy * 100} % valid {validation_metrics.accuracy * 100} %")
+            logger.info(f"      AVG_ACCURACY train {train_metrics.accuracy * 100} % valid {validation_metrics.accuracy * 100} %")
 
             # Log epoch duration
             epoch_duration = time.time() - epoch_start_time
@@ -210,14 +210,14 @@ def gather_batch_metrics(outputs, targets):
 
     metrics = munch.Munch()
 
-    # metrics.accuracy = accuracy_function(outputs, targets)
+    metrics.accuracy = accuracy_function(outputs, targets)
 
     return loss, metrics
 
 def prepare_metrics():
     metrics = munch.Munch()
     metrics.loss = 0.0
-    # metrics.accuracy = 0.0
+    metrics.accuracy = 0.0
 
     return metrics
 
@@ -268,7 +268,7 @@ def prepare_globals(present_data=False):
     toImage = torch_trans.ToPILImage()
     # Set metrics functions    
     global accuracy_function
-    accuracy_function = None
+    accuracy_function = Accuracy(threshold=0.001)
     
     global global_config
     global_config = config.unet_training.global_parameters
