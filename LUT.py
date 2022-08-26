@@ -831,7 +831,7 @@ class Colormap:
         idx = (np.abs(arr - value)).argmin()
         return idx    
 
-    def __find_nearest_index_color(self, color: np.ndarray):
+    def __find_nearest_index_color(self, color: np.ndarray):        
         idx = np.linalg.norm(self.colors - color, axis=1).argmin()
         return idx
 

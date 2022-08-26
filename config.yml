@@ -19,27 +19,27 @@ unet_training:
         dataset_size: 10 #If null then whole dataset is taken
         sweep_count: 50
     sweep_config:        
-        method: 'bayes'
+        method: 'grid'
         metric: 
             goal: 'minimize'
             name: 'TRAIN_AVG_Loss'
         parameters: 
             batch_size: 
-                value: 1
+                value: 3
             epochs: 
                 value: 10
             lr: 
-                #values: [0.1, 0.01, 0.001, 0.0001, 0.00001]
-                distribution: 'uniform'
-                max: 7e-3
-                min: 7e-4
+                values: [0.1, 0.01, 0.001, 0.00075, 0.0005, 0.00025, 0.0001, 0.000075, 0.00005, 0.000025, 0.00001]
+                #distribution: 'uniform'
+                #max: 7e-3
+                #min: 7e-4
             enable_lr_scheduler:
                 value: False
             loss_function:
-                value: "MSELoss"
+                values: ["HuberLoss", "MSELoss"]
     regular_config:
         batch_size: 3
         epochs: 100
-        lr: 0.001
+        lr: 0.01
         enable_lr_scheduler: False
-        loss_function: "HuberLoss"
+        loss_function: "MSELoss"

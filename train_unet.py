@@ -2,6 +2,7 @@ import time
 import torch
 import torchvision
 import torchmetrics as torch_metrics
+import random
 import wandb
 from Datasets.SpectrogramsDataset import SpectrogramsDataset 
 import torch.nn.functional as torch_func
@@ -87,13 +88,7 @@ def validate(model, validation_loader):
 
     return avg_metrics
 
-def get_rgb_image_from_lab_channels(L_channel, ab_channels):
-    colormap_lab = LUT.Colormap.from_colormap("parula_norm_lab")  
-    indexes = colormap_lab.get_indexes_from_colors(np.concatenate(L_channel.numpy(), ab_channels.numpy()))
-    colormap_rgb = LUT.Colormap.from_colormap("parula_rgb")  
-    img_target = colormap_rgb.get_colors_from_indexes(indexes)
-    img_target = toImage((img_target * 255).astype(np.uint8))
-    return img_target
+
 
 def train(config=None):    
     with wandb.init(project="mel-steg-cINN", entity="snikiel", config=config):
@@ -109,30 +104,11 @@ def train(config=None):
         training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
         validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
 
-        
-        first_batch = next(iter(training_loader))
-        print(type(first_batch))
-        print(len(first_batch))
-        inputs = first_batch[0]
-        targets = first_batch[1]
-        filename = first_batch[2]
-        print(inputs.shape)
-        print(targets.shape)        
-
-        
-        img = toImage(inputs[0]) 
-        print(f"Input ( {filename[0]} ):")
-        img.show()        
-        
-        img_target = get_rgb_image_from_lab_channels(inputs, targets)  
-        print(f"Target ( {filename[0]} ):")
-        img_target.show()
-        
-        
-        #TODO: zamknąć prezentację danych w jednej funkcji
-        
-        
-        
+        # Show first element
+        if global_config.present_data:
+            print("Input example:")
+            example_id = random.randint(0, len(training_set) - 1)
+            show_element(*training_set[example_id])
         
         # Create model
         model = UNet(n_channels=1)
@@ -180,6 +156,18 @@ def train(config=None):
             wandb.log({"epoch_runtime (seconds)": epoch_duration}, step=step)
             epoch_durations.append(epoch_duration)
 
+        # Predict first element
+        if global_config.present_data:
+            example_id = 0 # random.randint(0, len(training_set) - 1)
+            input, target, filename = training_set[example_id]
+            batched_input = torch.reshape(input, (1, *input.shape)).to(device).float()        
+            output = model(batched_input)
+            print("Result:")
+            show_element(batched_input[0], output[0], filename)
+            print("Target:")
+            show_element(input, target, filename)
+        
+        
         # Log average epoch duration
         avg_epoch_runtime = sum(epoch_durations) / len(epoch_durations)
         wandb.log({"avg epoch runtime (seconds)": avg_epoch_runtime})
@@ -232,6 +220,42 @@ def log_metrics(metrics, phase, step, batch_id=None):
         wandb.log({f'{phase.replace(" ", "_")}_{metrics_name}': metrics[metrics_name]}, step=step)
         
     logger.info(logger_message)
+    
+def show_element(input_in, target_in, filename_in):
+    input = input_in.detach().cpu()
+    target = target_in.detach().cpu()
+    filename = filename_in
+
+    print("L shape:", input.shape)
+    print("ab shape:", target.shape)
+    print("Filename:", filename)
+
+    L_img = toImage(input).convert('RGB')       
+
+    a_img = toImage(target[0]).convert('RGB') 
+
+    b_img = toImage(target[1]).convert('RGB') 
+
+    rgb_img = get_rgb_image_from_lab_channels(input, target)  
+    
+    Image.fromarray(np.hstack((np.array(L_img), np.array(a_img), np.array(b_img), np.array(rgb_img)))).show()
+
+    
+def get_rgb_image_from_lab_channels(L_channel, ab_channels):
+    colormap_lab = LUT.Colormap.from_colormap("parula_norm_lab")  
+    
+    L_np = L_channel.numpy()
+    ab_np = ab_channels.numpy()    
+    
+    Lab_np = np.concatenate((L_np, ab_np))
+    Lab_np = np.moveaxis(Lab_np, 0, -1)
+    
+    indexes = colormap_lab.get_indexes_from_colors(Lab_np)                            
+    colormap_rgb = LUT.Colormap.from_colormap("parula_rgb")
+    img_target = colormap_rgb.get_colors_from_indexes(indexes)
+    img_target = toImage((img_target * 255).astype(np.uint8))
+    
+    return img_target
 
 def test_CUDA():
     if torch.cuda.is_available():
@@ -284,10 +308,11 @@ def prepare_globals(present_data=False):
     metrics_functions = {
         "Loss": None,
         "MSE": torch_metrics.MeanSquaredError().to(device),
-        "RMSE": torch_metrics.MeanSquaredError(squared=False).to(device),
+        "HuberLoss": torch.nn.HuberLoss().to(device),
         "MAE": torch_metrics.MeanAbsoluteError().to(device),
-        "MAPE": torch_metrics.MeanAbsolutePercentageError().to(device),
-        "HuberLoss": torch.nn.HuberLoss().to(device)
+        # "RMSE": torch_metrics.MeanSquaredError(squared=False).to(device),
+        # "MAPE": torch_metrics.MeanAbsolutePercentageError().to(device)
+        
     }
     
     global global_config
