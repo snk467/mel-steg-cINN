@@ -12,6 +12,8 @@ from zipfile import ZipFile
 import zipfile
 from Utilities import *
 from tqdm import tqdm
+import torchvision.transforms as torch_trans
+import PIL.Image as Image
 logger = Logger.get_logger(__name__)
 
 class AudioDatasetProcessor:
@@ -94,8 +96,6 @@ class AudioDatasetProcessor:
             restored_audio = None
             if args.restore:
                 restored_audio = self.restore_audio(color_mel_spectrograms)
-            else:                
-                loaded_audio, color_mel_spectrograms  
 
             self.save_data(args, initial_id, loaded_audio, color_mel_spectrograms, restored_audio)     
             initial_id += audio_files_batch.size
@@ -135,6 +135,16 @@ class AudioDatasetProcessor:
             colormap_string = str(color_spec.colormap).lower()
             spectrogram_data = color_spec.mel_spectrogram_data
 
+            if args.debug and id == initial_id:
+                img = Image.fromarray((spectrogram_data[:,:,0] * 255).astype(np.uint8), 'L')
+                img.show(title="mel_spectrogram_data_L")
+
+                img = Image.fromarray((spectrogram_data[:,:,1] * 255).astype(np.uint8), 'L')
+                img.show(title="mel_spectrogram_data_a")
+
+                img = Image.fromarray((spectrogram_data[:,:,2] * 255).astype(np.uint8), 'L')
+                img.show(title="mel_spectrogram_data_b")
+
             # # Save labels if colormap is applied
             # if color_spec.colormap is not None:
             #     colormap = Colormap.from_colormap(colormap_string)
@@ -142,6 +152,8 @@ class AudioDatasetProcessor:
             #     labels_file_basename= f"labels_{colormap_string}_{id_string}"
 
             #     self.__save_compressed_tensor(args.output_dir, labels_tensor, labels_file_basename)
+
+            
 
             # Save spectrogram data
             file_name = f"spectrogram_{colormap_string}_{id_string}"
@@ -154,9 +166,21 @@ class AudioDatasetProcessor:
                 self.__save_compressed_tensor(args.output_dir, L_tensor, L_channel_file_basename)
 
                 ab_tensor = torch.from_numpy(spectrogram_data[:,:,1:])
-                ab_tensor = torch.reshape(ab_tensor, (2, ab_tensor.shape[0], ab_tensor.shape[1]))
+                ab_tensor = torch.permute(ab_tensor, (2, 0, 1))
                 ab_channel_file_basename = f"spectrogram_ab_channels_{colormap_string}_{id_string}"
                 self.__save_compressed_tensor(args.output_dir, ab_tensor, ab_channel_file_basename)
+
+                if args.debug and id == initial_id:
+                    toImage = torch_trans.ToPILImage()
+                    img = toImage(L_tensor) 
+                    img.show(title="L channel")        
+                    
+                    img = toImage(ab_tensor[0]) 
+                    img.show(title="a channel")  
+                    
+                    img = toImage(ab_tensor[1]) 
+                    img.show(title="b channel")  
+
             else:
                 with open(os.path.join(args.output_dir, f"{file_name}.npy"), 'wb') as file:
                     np.save(file, color_spec.mel_spectrogram_data) 
