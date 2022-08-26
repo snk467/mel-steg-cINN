@@ -7,7 +7,7 @@ class UNet(nn.Module):
     def __init__(self, n_channels):
         super(UNet, self).__init__()
         self.n_channels = n_channels
-
+        
         self.inc = DoubleConv(n_channels, 16)
         self.down1 = Down(16, 32)
         self.down2 = Down(32, 64)
@@ -19,7 +19,7 @@ class UNet(nn.Module):
         self.up3 = Up(64, 32)
         self.up4 = Up(32, 16)
         #TODO: Wyjście na warstwy gęste(liniowe)
-        self.out = nn.Sequential(nn.Linear(16, 16), nn.Linear(16, 2), nn.Sigmoid())
+        self.out = nn.Sequential(nn.Linear(16, 16), nn.Linear(16, 2))
         
 
     def forward(self, x):
