@@ -1,7 +1,7 @@
 import time
 import torch
 import torchvision
-from torchmetrics import Accuracy
+import torchmetrics as torch_metrics
 import wandb
 from Datasets.SpectrogramsDataset import SpectrogramsDataset 
 import torch.nn.functional as torch_func
@@ -16,8 +16,8 @@ import LUT
 import numpy as np
 
 def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
-    running_metrics = prepare_metrics()
-    avg_metrics = prepare_metrics()
+    running_metrics = None
+    avg_metrics = None
 
     # Here, we use enumerate(training_loader) instead of
     # iter(training_loader) so that we can track the batch
@@ -45,37 +45,31 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
         optimizer.step()
 
         # Gather data
-        running_metrics.loss += loss.item()
-        running_metrics.accuracy += metrics.accuracy
-
-        avg_metrics.loss += loss.item()
-        avg_metrics.accuracy += metrics.accuracy
-
+        running_metrics = add_metrics(running_metrics, metrics)
+        avg_metrics = add_metrics(avg_metrics, metrics)
+        
         # Report
         if i % global_config.batch_checkpoint == (global_config.batch_checkpoint - 1):
             step +=1
 
             # Calculate current checkpoint metrics
-            current_loss = running_metrics.loss / global_config.batch_checkpoint
-            current_accuracy = running_metrics.accuracy / global_config.batch_checkpoint
+            current_metrics = divide_metrics(running_metrics, global_config.batch_checkpoint)
 
-            # Log to stdout
-            logger.info(f"      batch {i + 1} loss: {current_loss} accuracy: {None} %")
-
-            # Log to Weights & Biases
-            wandb.log({"train_loss": current_loss, "train_acc": current_accuracy, "epoch": epoch + ((i+1)/len(training_loader))}, step=step)
+            # Log metrics           
+            log_metrics(metrics, "train", step, batch_id=i)
+            
+            wandb.log({"epoch": epoch + ((i+1)/len(training_loader))}, step=step)
 
             # Reset batch metrics
-            running_metrics = prepare_metrics()
+            running_metrics = None
 
         if (i + 1) == len(training_loader):
-            avg_metrics.loss = avg_metrics.loss / len(training_loader)
-            avg_metrics.accuracy = avg_metrics.accuracy / len(training_loader)
+            avg_metrics = divide_metrics(avg_metrics, len(training_loader))
             
     return avg_metrics, step
 
 def validate(model, validation_loader):
-    avg_metrics = prepare_metrics()
+    avg_metrics = None
 
     for i, vdata in enumerate(validation_loader):
         vinputs, vtargets, _ = vdata
@@ -87,12 +81,9 @@ def validate(model, validation_loader):
 
         vloss, metrics = gather_batch_metrics(voutputs, vtargets)
 
-        avg_metrics.loss += vloss.item()
-        avg_metrics.accuracy += metrics.accuracy
-
-
-    avg_metrics.loss = avg_metrics.loss / len(validation_loader) 
-    avg_metrics.accuracy = avg_metrics.accuracy / len(validation_loader) 
+        avg_metrics = add_metrics(avg_metrics, metrics)
+    
+    avg_metrics = divide_metrics(avg_metrics, len(validation_loader) )
 
     return avg_metrics
 
@@ -151,9 +142,8 @@ def train(config=None):
         # LR scheduler
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', verbose=True, patience=3, min_lr=0, factor=0.1)
         
-        # Define loss function
-        global loss_function
-        loss_function = get_loss_function(config.loss_function).to(device)
+        # Get loss function
+        metrics_functions["Loss"] = get_loss_function(config.loss_function).to(device) 
 
         step = 0
         epoch_durations = []
@@ -175,16 +165,13 @@ def train(config=None):
             
             # LR schedule
             if config.enable_lr_scheduler:
-                scheduler.step(train_metrics.loss)
+                scheduler.step(train_metrics["Loss"])
+                
             wandb.log({"learning_rate": scheduler.optimizer.param_groups[0]['lr']}, step=step)
 
-            # Log to Weights & Biases
-            wandb.log({"avg_train_loss": train_metrics.loss, "avg_train_acc": train_metrics.accuracy}, step=step)
-            wandb.log({"avg_val_loss": validation_metrics.loss, "avg_val_acc": validation_metrics.accuracy}, step=step)
-
-            # Print epoch statistics
-            logger.info(f"      AVG_LOSS train {train_metrics.loss} valid {validation_metrics.loss}")
-            logger.info(f"      AVG_ACCURACY train {train_metrics.accuracy * 100} % valid {validation_metrics.accuracy * 100} %")
+            # Log metrics
+            log_metrics(train_metrics, "TRAIN AVG", step)
+            log_metrics(validation_metrics, "VALID AVG", step)
 
             # Log epoch duration
             epoch_duration = time.time() - epoch_start_time
@@ -194,6 +181,9 @@ def train(config=None):
         # Log average epoch duration
         avg_epoch_runtime = sum(epoch_durations) / len(epoch_durations)
         wandb.log({"avg epoch runtime (seconds)": avg_epoch_runtime})
+        
+        # Finish the Weights & Biases run
+        wandb.finish()
 
 # TODO: Refactor accuracy function
 def accuracy(outputs, targets):
@@ -205,21 +195,50 @@ def accuracy(outputs, targets):
     
     
 def gather_batch_metrics(outputs, targets):
+    metrics = dict(metrics_functions)     
+    loss = None
+    for func in metrics_functions:
+        metrics[func] = metrics_functions[func](outputs, targets)    
+
+    return metrics["Loss"], metrics
+
+def add_metrics(metrics1, metrics2):
+    if metrics1 is None:
+        return dict(metrics2)
+
+    metrics_sum = dict(metrics1)
+    for metrics in metrics2:                
+        metrics_sum[metrics] += metrics2[metrics]
     
-    loss = loss_function(outputs, targets)
+    return metrics_sum
 
-    metrics = munch.Munch()
+def divide_metrics(metrics, divisor):
+    
+    if metrics is None:
+        return None
+    
+    metrics_divided = dict(metrics)
+    
+    for metrics_name in metrics:                
+            metrics_divided[metrics_name] /= divisor
+            
+    return metrics_divided  
 
-    metrics.accuracy = accuracy_function(outputs, targets)
+def log_metrics(metrics, phase, step, batch_id=None):
+    
+    if batch_id is not None:
+        logger_message = f"        batch {batch_id + 1}"
+    else:
+        logger_message =f"{phase} METRICS"
+    
+    for metrics_name in metrics:
+        # Log to stdout
+        logger_message += f" {metrics_name}: {metrics[metrics_name]}"
 
-    return loss, metrics
-
-def prepare_metrics():
-    metrics = munch.Munch()
-    metrics.loss = 0.0
-    metrics.accuracy = 0.0
-
-    return metrics
+        # Log to Weights & Biases
+        wandb.log({f'{phase.replace(" ", "_")}_{metrics_name}': metrics[metrics_name]}, step=step)
+        
+    logger.info(logger_message)
 
 def test_CUDA():
     if torch.cuda.is_available():
@@ -239,6 +258,8 @@ def get_loss_function(loss_function_name):
         loss_func = torch.nn.MSELoss()
     if loss_function_name == "HuberLoss":
         loss_func = torch.nn.HuberLoss()
+    if loss_function_name == "L1Loss":
+        loss_func = torch.nn.L1Loss()
 
     #TODO: MSELoss, HuberLoss
     return loss_func
@@ -266,9 +287,17 @@ def prepare_globals(present_data=False):
         
     global toImage
     toImage = torch_trans.ToPILImage()
+    
     # Set metrics functions    
-    global accuracy_function
-    accuracy_function = Accuracy(threshold=0.001)
+    global metrics_functions
+    metrics_functions = {
+        "Loss": None,
+        "MSE": torch_metrics.MeanSquaredError().to(device),
+        "RMSE": torch_metrics.MeanSquaredError(squared=False).to(device),
+        "MAE": torch_metrics.MeanAbsoluteError().to(device),
+        "MAPE": torch_metrics.MeanAbsolutePercentageError().to(device),
+        "HuberLoss": torch.nn.HuberLoss().to(device)
+    }
     
     global global_config
     global_config = config.unet_training.global_parameters
@@ -284,7 +313,7 @@ def run(sweep=False, present_data=False):
     
     if sweep:        
         sweep_id = wandb.sweep(config.unet_training.sweep_config, project="mel-steg-cINN", entity="snikiel")
-        wandb.agent(sweep_id, function=train, count=20)
+        wandb.agent(sweep_id, function=train, count=config.unet_training.global_parameters.sweep_count)
     else:
         train(config.unet_training.regular_config)
 

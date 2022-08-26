@@ -19,7 +19,7 @@ class UNet(nn.Module):
         self.up3 = Up(64, 32)
         self.up4 = Up(32, 16)
         #TODO: Wyjście na warstwy gęste(liniowe)
-        self.out = nn.Sequential(nn.Linear(16, 8), nn.Linear(8, 2), nn.Sigmoid())
+        self.out = nn.Sequential(nn.Linear(16, 16), nn.Linear(16, 2), nn.Sigmoid())
         
 
     def forward(self, x):

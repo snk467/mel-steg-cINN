@@ -10,35 +10,36 @@ audio_parameters:
     global_max: 3.608585834503174
 unet_training:    
     global_parameters:
-        spectrogram_files_directory: /storage/data/Spectrograms/parula_norm_lab_spectrograms_tensors
-        batch_checkpoint: 2
+        spectrogram_files_directory: /notebooks/Output
+        batch_checkpoint: 3
         add_noise: False
         batch_size: 3
         learning_rate: 0.01
         epochs: 250
         dataset_size: 10 #If null then whole dataset is taken
-    sweep_config:
-        method: 'grid'
+        sweep_count: 50
+    sweep_config:        
+        method: 'bayes'
         metric: 
             goal: 'minimize'
-            name: 'avg_train_loss'
+            name: 'TRAIN_AVG_Loss'
         parameters: 
             batch_size: 
                 value: 1
             epochs: 
-                value: 20
+                value: 10
             lr: 
-                values: [0.1, 0.01, 0.001]
-                #distribution: 'uniform'
-                #max: 1e-2
-                #min: 1e-4
+                #values: [0.1, 0.01, 0.001, 0.0001, 0.00001]
+                distribution: 'uniform'
+                max: 7e-3
+                min: 7e-4
             enable_lr_scheduler:
-                values: [True, False]
+                value: False
             loss_function:
-                values: ["DiceBCELoss", "DiceLoss", "IoULoss"]
+                value: "MSELoss"
     regular_config:
-        batch_size: 1
+        batch_size: 3
         epochs: 100
-        lr: 0.1
-        enable_lr_scheduler: True
-        loss_function: "DiceBCELoss"
+        lr: 0.001
+        enable_lr_scheduler: False
+        loss_function: "HuberLoss"
