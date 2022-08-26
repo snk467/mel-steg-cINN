@@ -87,11 +87,12 @@ def validate(model, validation_loader):
 
     return avg_metrics
 
-def get_rgb_image_from_labels(labels):
-    colormap = LUT.Colormap.from_colormap("parula_rgb")  
-    indexes = torch.argmax(labels, dim=1)
-    rgb_target = colormap.get_colors_from_indexes(indexes[0].numpy())
-    img_target = toImage((rgb_target * 255).astype(np.uint8))
+def get_rgb_image_from_lab_channels(L_channel, ab_channels):
+    colormap_lab = LUT.Colormap.from_colormap("parula_norm_lab")  
+    indexes = colormap_lab.get_indexes_from_colors(np.concatenate(L_channel.numpy(), ab_channels.numpy()))
+    colormap_rgb = LUT.Colormap.from_colormap("parula_rgb")  
+    img_target = colormap_rgb.get_colors_from_indexes(indexes)
+    img_target = toImage((img_target * 255).astype(np.uint8))
     return img_target
 
 def train(config=None):    
@@ -113,22 +114,23 @@ def train(config=None):
         print(type(first_batch))
         print(len(first_batch))
         inputs = first_batch[0]
-        labels = first_batch[1]
+        targets = first_batch[1]
         filename = first_batch[2]
         print(inputs.shape)
-        print(labels.shape)        
+        print(targets.shape)        
 
         
         img = toImage(inputs[0]) 
         print(f"Input ( {filename[0]} ):")
         img.show()        
         
-        img_target = get_rgb_image_from_labels(labels)  
+        img_target = get_rgb_image_from_lab_channels(inputs, targets)  
         print(f"Target ( {filename[0]} ):")
         img_target.show()
         
         
         #TODO: zamknąć prezentację danych w jednej funkcji
+        
         
         
         
@@ -184,15 +186,6 @@ def train(config=None):
         
         # Finish the Weights & Biases run
         wandb.finish()
-
-# TODO: Refactor accuracy function
-def accuracy(outputs, targets):
-    threshold = 0.5
-    thresholded_outputs = (outputs > threshold).float() 
-    return torch.all(thresholded_outputs == targets, dim=1).float().sum() / targets.sum()
-    
-    #return (torch.argmax((outputs > threshold).float(), dim=1) == torch.argmax(targets, dim=1)).sum() / (targets.shape[0] * targets.shape[2] * targets.shape[3])
-    
     
 def gather_batch_metrics(outputs, targets):
     metrics = dict(metrics_functions)     
@@ -260,8 +253,6 @@ def get_loss_function(loss_function_name):
         loss_func = torch.nn.HuberLoss()
     if loss_function_name == "L1Loss":
         loss_func = torch.nn.L1Loss()
-
-    #TODO: MSELoss, HuberLoss
     return loss_func
 
 def prepare_globals(present_data=False):    
