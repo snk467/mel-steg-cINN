@@ -5,6 +5,7 @@ from Normalization import *
 import torch
 from PIL import Image
 import torchvision.transforms as transforms
+import gzip
 import Logger
 from zipfile import ZipFile
 import zipfile
@@ -56,15 +57,13 @@ class SpectrogramsDataset(Dataset):
         # Return tensors
         return input, target, os.path.basename(self.inputs[index])
 
-    def __load_tensor(self, zip_path):
-        tensor_path = zip_path.replace(".zip", ".pt")
+    def __load_tensor(self, compressed_tensor_path):
+        tensor_path = compressed_tensor_path.replace(".zip", ".pt")
         if os.path.exists(tensor_path):
             os.remove(tensor_path)
-                             
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(self.dataset_directory)
 
-        tensor = torch.load(tensor_path)
+        with gzip.open(compressed_tensor_path, 'rb') as file:
+            tensor = torch.load(file)        
                              
         os.remove(tensor_path)       
         return tensor

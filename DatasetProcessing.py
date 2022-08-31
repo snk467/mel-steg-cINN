@@ -1,5 +1,7 @@
 import argparse
 import soundfile
+import gzip
+import shutil
 import os
 import random
 import Exceptions
@@ -191,21 +193,22 @@ class AudioDatasetProcessor:
 
             id += 1
 
-    def __save_compressed_tensor(self, dest_dir, labels_tensor, labels_file_basename):
-        labels_path =  os.path.join(dest_dir, f"{labels_file_basename}.pt")
-        zip_filename = f"{os.path.splitext(os.path.basename(labels_path))[0]}.zip"
+    def __save_compressed_tensor(self, dest_dir, input_tensor, filename):
+        tensor_path =  os.path.join(dest_dir, f"{filename}.pt")
+        zip_filename = f"{os.path.splitext(os.path.basename(tensor_path))[0]}.zip"
         zip_path = os.path.join(dest_dir, zip_filename)
 
-        torch.save(labels_tensor, labels_path)
+        torch.save(input_tensor, tensor_path)
 
         if os.path.exists(zip_path):
             os.remove(zip_path)
 
-        with ZipFile(zip_path, 'x', zipfile.ZIP_DEFLATED) as zipf:                    
-            zipf.write(labels_path, arcname=os.path.basename(labels_path))
+        with open(tensor_path, 'rb') as f_in:
+            with gzip.open(f'{tensor_path}.gz', 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
 
-        os.remove(labels_path)
-        logger.debug(f"Saved tensor of shape {labels_tensor.shape} in {zip_path}.")
+        os.remove(tensor_path)
+        logger.debug(f"Saved tensor of shape {input_tensor.shape} in {zip_path}.")
 
 def get_args():
     parser = argparse.ArgumentParser()
