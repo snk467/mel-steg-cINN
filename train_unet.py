@@ -66,7 +66,9 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
 
         if (i + 1) == len(training_loader):
             avg_metrics = divide_metrics(avg_metrics, len(training_loader))
-            
+    
+    torch.cuda.empty_cache()
+    
     return avg_metrics, step
 
 def validate(model, validation_loader):
@@ -118,11 +120,14 @@ def train(config=None):
         optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
         
         # LR scheduler
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', verbose=True, patience=3, min_lr=0, factor=0.1)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', verbose=False, patience=2, min_lr=0.0, factor=0.1)
         
         # Get loss function
-        metrics_functions["Loss"] = get_loss_function(config.loss_function).to(device) 
+        metrics_functions["Loss"] = loss_functions[config.loss_function].to(device) 
 
+        # Print initial parameters
+        print_initial_parameters(config)
+        
         step = 0
         epoch_durations = []
         for epoch in range(config.epochs):
@@ -156,16 +161,11 @@ def train(config=None):
             wandb.log({"epoch_runtime (seconds)": epoch_duration}, step=step)
             epoch_durations.append(epoch_duration)
 
-        # Predict first element
+        # Predict first element from train
         if global_config.present_data:
-            example_id = 0 # random.randint(0, len(training_set) - 1)
-            input, target, filename = training_set[example_id]
-            batched_input = torch.reshape(input, (1, *input.shape)).to(device).float()        
-            output = model(batched_input)
-            print("Result:")
-            show_element(batched_input[0], output[0], filename)
-            print("Target:")
-            show_element(input, target, filename)
+            predict_example(model, training_set, desc="Training set example")
+            print()
+            predict_example(model, validation_set, desc="Validation set example")
         
         
         # Log average epoch duration
@@ -175,13 +175,36 @@ def train(config=None):
         # Finish the Weights & Biases run
         wandb.finish()
     
+def print_initial_parameters(config):
+    logger.info("INITIAL PARAMETERS")
+    logger.info(f"Batch size: {config.batch_size}")
+    logger.info(f"Number of epochs {config.epochs}")
+    logger.info(f"Learning rate: {config.lr}")
+    logger.info(f"LR scheduler enabled: {config.enable_lr_scheduler}")
+    logger.info(f"Loss function: {config.loss_function}")
+    
+def predict_example(model, dataset, desc=None):
+    example_id = random.randint(0, len(dataset) - 1)
+    input, target, filename = dataset[example_id]
+    batched_input = torch.reshape(input, (1, *input.shape)).to(device).float()        
+    output = model(batched_input)
+    print(desc)
+    print("Result:")
+    show_element(batched_input[0], output[0], filename)
+    print("Target:")
+    show_element(input, target, filename)
+
 def gather_batch_metrics(outputs, targets):
     metrics = dict(metrics_functions)     
     loss = None
     for func in metrics_functions:
-        metrics[func] = metrics_functions[func](outputs, targets)    
+        if func == "Loss":
+            loss = metrics_functions[func](outputs, targets)
+            metrics[func] = loss.item()
+        else:
+            metrics[func] = metrics_functions[func](outputs, targets).item()
 
-    return metrics["Loss"], metrics
+    return loss, metrics
 
 def add_metrics(metrics1, metrics2):
     if metrics1 is None:
@@ -218,6 +241,9 @@ def log_metrics(metrics, phase, step, batch_id=None):
 
         # Log to Weights & Biases
         wandb.log({f'{phase.replace(" ", "_")}_{metrics_name}': metrics[metrics_name]}, step=step)
+        
+    # Uncomment if you want to log memory usage
+    # logger_message += f" Memory: {torch.cuda.memory_allocated(device)}/{torch.cuda.get_device_properties(device).total_memory}"
         
     logger.info(logger_message)
     
@@ -268,16 +294,6 @@ def test_CUDA():
     else:
         logger.warning("PyTorch is not running on CUDA!")
         return False
-    
-def get_loss_function(loss_function_name):
-    loss_func = None
-    if loss_function_name == "MSELoss":
-        loss_func = torch.nn.MSELoss()
-    if loss_function_name == "HuberLoss":
-        loss_func = torch.nn.HuberLoss()
-    if loss_function_name == "L1Loss":
-        loss_func = torch.nn.L1Loss()
-    return loss_func
 
 def prepare_globals(present_data=False):    
     
@@ -313,6 +329,13 @@ def prepare_globals(present_data=False):
         # "RMSE": torch_metrics.MeanSquaredError(squared=False).to(device),
         # "MAPE": torch_metrics.MeanAbsolutePercentageError().to(device)
         
+    }
+        
+    global loss_functions 
+    loss_functions = { 
+        "MSELoss": torch.nn.MSELoss(),
+        "HuberLoss": torch.nn.HuberLoss(),
+        "L1Loss": torch.nn.L1Loss()
     }
     
     global global_config
