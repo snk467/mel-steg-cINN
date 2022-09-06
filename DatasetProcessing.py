@@ -31,12 +31,12 @@ class AudioDatasetProcessor:
         loaded_audio = []
 
         for audio_file in tqdm(audio_files, leave=False, desc="Loading audio files"):
-            audio, sample_rate = load_audio(audio_file)
+            audio_full, sample_rate = load_audio(audio_file)
 
             if sample_rate != self.config.sample_rate:
                 raise Exceptions.SampleRateError
 
-            audio = Audio(audio, self.config)
+            audio = Audio(audio_full, self.config)
 
             loaded_audio.append(audio)
 
@@ -60,14 +60,43 @@ class AudioDatasetProcessor:
             audio.append(mel_spectrogram.get_audio())
         return audio
 
+    def __calculate_global_statistics(self, means, standard_deviations):
+
+        self.logger.info("Calculating mean and standard deviation.")
+
+        for stats in tqdm(list(zip(range(0, len(means)), means, standard_deviations)), leave=False):
+            if stats[0] == 0:
+                _, mean, standard_deviation = stats
+            else:
+                count, current_mean, current_standard_deviation = stats
+                old_mean = mean
+                m = count * 1.0
+                n = 1.0
+                mean = m/(m+n)*old_mean + n/(m+n)*current_mean
+                standard_deviation  = m/(m+n)*standard_deviation**2 + n/(m+n)*current_standard_deviation**2 +\
+                            m*n/(m+n)**2 * (old_mean - current_mean)**2
+                standard_deviation = np.sqrt(standard_deviation)
+
+        return mean, standard_deviation
+
+
     def get_statistics(self):
         self.logger.info("Processing audio.")
 
-        loaded_audio = self.load_audio_files(self.audio_files)
+        means = []
+        standard_deviations = []
+        batch_size = 100
 
-        mel_spectrograms = self.get_mel_spectrograms(loaded_audio, normalized=False, range=None)
+        for audio_files_batch in tqdm(self.__get_batches(self.audio_files, batch_size=batch_size), leave=False, desc="Precessing audio files batches"):
+            loaded_audio = self.load_audio_files(audio_files_batch)
 
-        mean, standard_deviation, _, _ = Normalization.calculate_statistics(mel_spectrograms)
+            mel_spectrograms = self.get_mel_spectrograms(loaded_audio, normalized=False, range=None)
+
+            batch_means, batch_standard_deviations, _, _ = Normalization.calculate_statistics(mel_spectrograms)
+            means.extend(batch_means)
+            standard_deviations.extend(batch_standard_deviations)
+
+        mean, standard_deviation = self.__calculate_global_statistics(means, standard_deviations)
 
         self.logger.info("Adjusting statistics.")
         def modify_stats(audio):
@@ -77,20 +106,35 @@ class AudioDatasetProcessor:
 
         loaded_audio = map(modify_stats, loaded_audio)
 
-        mel_spectrograms = self.get_mel_spectrograms(loaded_audio, normalized=True, range=None)
+        mins = []
+        maxs = []
 
-        _, _, min, max = Normalization.calculate_statistics(mel_spectrograms)
+        for audio_files_batch in tqdm(self.__get_batches(self.audio_files, batch_size=batch_size), leave=False, desc="Precessing audio files batches"):
+            loaded_audio = self.load_audio_files(audio_files_batch)
+
+            mel_spectrograms = self.get_mel_spectrograms(loaded_audio, normalized=True, range=None)
+
+            _, _, batch_mins, batch_maxs = Normalization.calculate_statistics(mel_spectrograms)
+
+            mins.extend(batch_mins)
+            maxs.extend(batch_maxs)
+
+        self.logger.info("Calculating min and max.")
+        min = np.min(mins)
+        max = np.min(maxs)
 
         self.logger.info("Audio processing done.")
 
         return mean, standard_deviation, min, max
 
+    def __get_batches(self, array, batch_size=100):
+        return np.array_split(array, 1 if array.size < batch_size else array.size // batch_size)
+
     def process(self, args):
         self.logger.info("Processing audio.")
-        initial_id = 0
-        batch_size = 100
+        initial_id = 0        
         
-        for audio_files_batch in tqdm(np.array_split(self.audio_files, 1 if self.audio_files.size < batch_size else self.audio_files.size // batch_size), leave=False, desc="Precessing audio files batches"):
+        for audio_files_batch in tqdm(self.__get_batches(self.audio_files), leave=False, desc="Precessing audio files batches"):
             loaded_audio = self.load_audio_files(audio_files_batch)
 
             color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio, colormap=args.colormap)
@@ -195,20 +239,20 @@ class AudioDatasetProcessor:
 
     def __save_compressed_tensor(self, dest_dir, input_tensor, filename):
         tensor_path =  os.path.join(dest_dir, f"{filename}.pt")
-        zip_filename = f"{os.path.splitext(os.path.basename(tensor_path))[0]}.zip"
-        zip_path = os.path.join(dest_dir, zip_filename)
+        gz_filename = f"{os.path.basename(tensor_path)}.gz"
+        gz_path = os.path.join(dest_dir, gz_filename)
 
         torch.save(input_tensor, tensor_path)
 
-        if os.path.exists(zip_path):
-            os.remove(zip_path)
+        if os.path.exists(gz_path):
+            os.remove(gz_path)
 
         with open(tensor_path, 'rb') as f_in:
             with gzip.open(f'{tensor_path}.gz', 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
 
         os.remove(tensor_path)
-        logger.debug(f"Saved tensor of shape {input_tensor.shape} in {zip_path}.")
+        logger.debug(f"Saved tensor of shape {input_tensor.shape} in {gz_path}.")
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -242,10 +286,10 @@ if __name__ == "__main__":
     if args.statistics:
         mean, standard_deviation, min, max = audio_processor.get_statistics()
         file = open(os.path.join(args.output_dir, "dataset_stats.txt"), "w")
-        file.write(f"Mean:{mean}\n")
-        file.write(f"Standard deviation:{standard_deviation}\n")
-        file.write(f"Min:{min}\n")
-        file.write(f"Max:{max}\n")
+        file.write(f"mean: {mean}\n")
+        file.write(f"standard_deviation: {standard_deviation}\n")
+        file.write(f"global_min: {min}\n")
+        file.write(f"global_max: {max}\n")
         file.close()
         logger.info("Statistics saved.")
     else:
