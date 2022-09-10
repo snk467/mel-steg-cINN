@@ -51,11 +51,12 @@ class SpectrogramsDataset(Dataset):
         target = self.__load_tensor(os.path.join(self.dataset_directory , self.targets[index]))
         
         # Augment tensor
+        clear_input = input
         if self.augmentor is not None:
             input = self.augmentor(input)
 
         # Return tensors
-        return input, target, os.path.basename(self.inputs[index])
+        return input, target, os.path.basename(self.inputs[index]), clear_input
 
     def __load_tensor(self, compressed_tensor_path):
 

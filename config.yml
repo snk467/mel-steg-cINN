@@ -34,36 +34,36 @@ audio_parameters:
     # global_max: 2.127270221710205
 unet_training:    
     global_parameters:
-        spectrogram_files_directory: /notebooks/Output
-        batch_checkpoint: 3
+        spectrogram_files_directory: /storage/data/spectrograms_6000
+        batch_checkpoint: 5
         add_noise: False
-        batch_size: 3
-        learning_rate: 0.01
-        epochs: 250
-        dataset_size: 10 #If null then whole dataset is taken
+        dataset_size: 1000 #If null then whole dataset is taken
         sweep_count: 50
     sweep_config:        
         method: 'grid'
         metric: 
             goal: 'minimize'
-            name: 'TRAIN_AVG_Loss'
+            name: 'VALID_AVG_Loss'
         parameters: 
             batch_size: 
-                value: 3
-            epochs: 
                 value: 10
+            epochs: 
+                value: 5
             lr: 
-                values: [0.1, 0.01, 0.001, 0.00075, 0.0005, 0.00025, 0.0001, 0.000075, 0.00005, 0.000025, 0.00001]
-                #distribution: 'uniform'
-                #max: 7e-3
-                #min: 7e-4
+                values: [0.1, 0.05, 0.01, 0.005, 0.001, 0.00075, 0.0005, 0.00025, 0.0001, 0.000075, 0.00005, 0.000025, 0.00001]
+                # distribution: 'uniform'
+                # max: 1e-2
+                # min: 1e-5
             enable_lr_scheduler:
                 value: False
             loss_function:
-                values: ["HuberLoss", "MSELoss"]
+                value: "HuberLoss"
+            model:
+                values: ["custom_unet", "unet"]
     regular_config:
-        batch_size: 3
-        epochs: 100
-        lr: 0.01
+        batch_size: 10
+        epochs: 5
+        lr: 0.001
         enable_lr_scheduler: False
         loss_function: "MSELoss"
+        model: "unet"

@@ -7,7 +7,8 @@ import wandb
 from Datasets.SpectrogramsDataset import SpectrogramsDataset 
 import torch.nn.functional as torch_func
 import Configuration
-from Models.UNET.unet_model import UNet
+from Models.UNET.unet_models import *
+from Noise import *
 import Logger
 import munch
 import argparse
@@ -25,7 +26,7 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
     # index and do some intra-epoch reporting
     for i, data in enumerate(training_loader):
         # Every data instance is an input + label pairs\
-        inputs, targets, _ = data
+        inputs, targets, _, _ = data
         
         inputs = inputs.to(device).float()
         targets = targets.to(device).float()
@@ -75,7 +76,7 @@ def validate(model, validation_loader):
     avg_metrics = None
 
     for i, vdata in enumerate(validation_loader):
-        vinputs, vtargets, _ = vdata
+        vinputs, vtargets, _, _ = vdata
         
         vinputs = vinputs.to(device).float()
         vtargets = vtargets.to(device).float()
@@ -98,9 +99,16 @@ def train(config=None):
     
         # Create datasets for training & validation
         logger.info("Import training set.")
-        training_set = SpectrogramsDataset(global_config.spectrogram_files_directory, train=True, size=global_config.dataset_size)
+        
+        training_set = SpectrogramsDataset(global_config.spectrogram_files_directory,
+                                           train=True,
+                                           size=global_config.dataset_size,
+                                           augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
         logger.info("Import validation set.")
-        validation_set = SpectrogramsDataset(global_config.spectrogram_files_directory, train=False, size=global_config.dataset_size)
+        validation_set = SpectrogramsDataset(global_config.spectrogram_files_directory,
+                                             train=False,
+                                             size=global_config.dataset_size,
+                                             augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
 
         # Create data loaders for our datasets; shuffle for training, not for validation
         training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
@@ -113,7 +121,7 @@ def train(config=None):
             show_element(*training_set[example_id])
         
         # Create model
-        model = UNet(n_channels=1)
+        model = models[config.model](n_channels=1)
         model = model.to(device).float()
 
         # Optimizers specified in the torch.optim package
@@ -182,17 +190,18 @@ def print_initial_parameters(config):
     logger.info(f"Learning rate: {config.lr}")
     logger.info(f"LR scheduler enabled: {config.enable_lr_scheduler}")
     logger.info(f"Loss function: {config.loss_function}")
+    logger.info(f"Model: {config.model}")
     
 def predict_example(model, dataset, desc=None):
     example_id = random.randint(0, len(dataset) - 1)
-    input, target, filename = dataset[example_id]
+    input, target, filename, clear_input = dataset[example_id]
     batched_input = torch.reshape(input, (1, *input.shape)).to(device).float()        
     output = model(batched_input)
     print(desc)
     print("Result:")
-    show_element(batched_input[0], output[0], filename)
+    show_element(batched_input[0], output[0], filename, clear_input)
     print("Target:")
-    show_element(input, target, filename)
+    show_element(input, target, filename, clear_input) 
 
 def gather_batch_metrics(outputs, targets):
     metrics = dict(metrics_functions)     
@@ -247,24 +256,27 @@ def log_metrics(metrics, phase, step, batch_id=None):
         
     logger.info(logger_message)
     
-def show_element(input_in, target_in, filename_in):
+def show_element(input_in, target_in, filename_in, clear_input_in):
     input = input_in.detach().cpu()
     target = target_in.detach().cpu()
     filename = filename_in
+    clear_input = clear_input_in
 
     print("L shape:", input.shape)
     print("ab shape:", target.shape)
     print("Filename:", filename)
 
-    L_img = toImage(input).convert('RGB')       
+    L_img = toImage(input).convert('RGB') 
+    
+    L_clear_img = toImage(clear_input).convert('RGB')       
 
     a_img = toImage(target[0]).convert('RGB') 
 
     b_img = toImage(target[1]).convert('RGB') 
 
-    rgb_img = get_rgb_image_from_lab_channels(input, target)  
+    rgb_img = get_rgb_image_from_lab_channels(clear_input, target)  
     
-    Image.fromarray(np.hstack((np.array(L_img), np.array(a_img), np.array(b_img), np.array(rgb_img)))).show()
+    Image.fromarray(np.hstack((np.array(L_img), np.array(L_clear_img), np.array(a_img), np.array(b_img), np.array(rgb_img)))).show()
 
     
 def get_rgb_image_from_lab_channels(L_channel, ab_channels):
@@ -341,6 +353,12 @@ def prepare_globals(present_data=False):
     global global_config
     global_config = config.unet_training.global_parameters
     global_config.update({'present_data': present_data})
+    
+    global models
+    models = {
+        "custom_unet": custom_UNet,
+        "unet": UNet
+    }
 
     if global_config.present_data:
         with Image.open("/notebooks/mel-steg-cINN/Lenna_(test_image).png") as img:
