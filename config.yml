@@ -1,37 +1,37 @@
 audio_parameters:
 
-    # 512x512
-    segment_length: 102200
-    sample_rate: 22050
-    hop_length: 200
-    window_length: 2048
-    n_mels: 512
-    mean: -29.76158387351581
-    standard_deviation: 16.546569945047125
-    global_min: -1.3392828702926636
-    global_max: 3.1347999572753906
+    resolution_512x512:
+        segment_length: 102200
+        sample_rate: 22050
+        hop_length: 200
+        window_length: 2048
+        n_mels: 512
+        mean: -29.76158387351581
+        standard_deviation: 16.546569945047125
+        global_min: -1.3392828702926636
+        global_max: 3.1347999572753906
 
-    # # 256x256
-    # segment_length: 51000
-    # sample_rate: 22050
-    # hop_length: 200
-    # window_length: 1024
-    # n_mels: 256
-    # mean: -35.93647618796097
-    # standard_deviation: 17.02300907660197
-    # global_min: -1.9601174592971802
-    # global_max: 2.7394044399261475
+    resolution_256x256:
+        segment_length: 51000
+        sample_rate: 22050
+        hop_length: 200
+        window_length: 1024
+        n_mels: 256
+        mean: -35.93647618796097
+        standard_deviation: 17.02300907660197
+        global_min: -1.9601174592971802
+        global_max: 2.7394044399261475
 
-    # # 128x128
-    # segment_length: 25400
-    # sample_rate: 22050
-    # hop_length: 200
-    # window_length: 800
-    # n_mels: 128
-    # mean: -37.36893585525392
-    # standard_deviation: 17.880760586984575
-    # global_min: -2.3468124866485596
-    # global_max: 2.127270221710205
+    resolution_128x128:
+        segment_length: 25400
+        sample_rate: 22050
+        hop_length: 200
+        window_length: 800
+        n_mels: 128
+        mean: -37.36893585525392
+        standard_deviation: 17.880760586984575
+        global_min: -2.3468124866485596
+        global_max: 2.127270221710205
 
 unet_training:    
     global_parameters:

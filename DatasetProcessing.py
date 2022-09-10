@@ -280,7 +280,7 @@ if __name__ == "__main__":
     logger.info("Configuration loaded.")
 
     # Get audio processor
-    audio_processor = AudioDatasetProcessor(args.input_dir, config.audio_parameters)
+    audio_processor = AudioDatasetProcessor(args.input_dir, config.audio_parameters.resolution_512x512)
     logger.info("Audio processor initialized.")
 
     if args.statistics:
