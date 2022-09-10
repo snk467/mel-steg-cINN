@@ -17,7 +17,7 @@ import torchvision.transforms as torch_trans
 import LUT
 import numpy as np
 
-def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
+def train_one_epoch(model, training_loader, optimizer, epoch, step):
     running_metrics = None
     avg_metrics = None
 
@@ -68,8 +68,6 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
         if (i + 1) == len(training_loader):
             avg_metrics = divide_metrics(avg_metrics, len(training_loader))
     
-    torch.cuda.empty_cache()
-    
     return avg_metrics, step
 
 def validate(model, validation_loader):
@@ -83,7 +81,7 @@ def validate(model, validation_loader):
         
         voutputs = model(vinputs)
 
-        vloss, metrics = gather_batch_metrics(voutputs, vtargets)
+        _, metrics = gather_batch_metrics(voutputs, vtargets)
 
         avg_metrics = add_metrics(avg_metrics, metrics)
     
@@ -95,20 +93,27 @@ def validate(model, validation_loader):
 
 def train(config=None):    
     with wandb.init(project="mel-steg-cINN", entity="snikiel", config=config):
+
         config = wandb.config    
     
+        # Create noise augmentor
+        if global_config.add_noise:
+            noise_augmentor = GaussianNoise(global_config.noise_mean, global_config.noise_variance)
+        else:
+            noise_augmentor = None
+
         # Create datasets for training & validation
         logger.info("Import training set.")
-        
         training_set = SpectrogramsDataset(global_config.spectrogram_files_directory,
                                            train=True,
                                            size=global_config.dataset_size,
-                                           augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
+                                           augmentor=noise_augmentor)
+
         logger.info("Import validation set.")
         validation_set = SpectrogramsDataset(global_config.spectrogram_files_directory,
                                              train=False,
                                              size=global_config.dataset_size,
-                                             augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
+                                             augmentor=noise_augmentor)
 
         # Create data loaders for our datasets; shuffle for training, not for validation
         training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
@@ -145,7 +150,7 @@ def train(config=None):
             # Make sure gradient tracking is on, and do a pass over the data
             model.train(True)
             logger.info("       Model training.")
-            train_metrics, step = train_one_epoch(model, training_loader, optimizer, config, epoch, step)
+            train_metrics, step = train_one_epoch(model, training_loader, optimizer, epoch, step)
 
             # We don't need gradients on to do reporting
             model.train(False)
@@ -174,7 +179,6 @@ def train(config=None):
             predict_example(model, training_set, desc="Training set example")
             print()
             predict_example(model, validation_set, desc="Validation set example")
-        
         
         # Log average epoch duration
         avg_epoch_runtime = sum(epoch_durations) / len(epoch_durations)

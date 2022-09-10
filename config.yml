@@ -32,11 +32,14 @@ audio_parameters:
     # standard_deviation: 17.880760586984575
     # global_min: -2.3468124866485596
     # global_max: 2.127270221710205
+
 unet_training:    
     global_parameters:
         spectrogram_files_directory: /storage/data/spectrograms_6000
         batch_checkpoint: 5
-        add_noise: False
+        add_noise: True
+        noise_mean: [0.0]
+        noise_variance: [0.001, 0.001, 0.0]
         dataset_size: 1000 #If null then whole dataset is taken
         sweep_count: 50
     sweep_config:        
