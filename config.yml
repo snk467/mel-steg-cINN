@@ -36,12 +36,13 @@ audio_parameters:
 unet_training:    
     global_parameters:
         spectrogram_files_directory: /storage/data/spectrograms_6000
-        batch_checkpoint: 5
+        batch_checkpoint: 1
         add_noise: True
         noise_mean: [0.0]
         noise_variance: [0.001, 0.001, 0.0]
-        dataset_size: 1000 #If null then whole dataset is taken
+        dataset_size: 50 #If null then whole dataset is taken
         sweep_count: 50
+        save_model: False
     sweep_config:        
         method: 'grid'
         metric: 
@@ -69,4 +70,4 @@ unet_training:
         lr: 0.001
         enable_lr_scheduler: False
         loss_function: "MSELoss"
-        model: "unet"
+        model: "custom_unet"
