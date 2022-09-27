@@ -21,7 +21,6 @@ class UNet(nn.Module):
         self.up4 = Up.from_residual_half_channels(16, 8)
         self.up5 = Up.from_residual_half_channels(8, 4)
         self.out = nn.Sequential(nn.Linear(4, 4), nn.Linear(4, 2))
-        
 
     def forward(self, x):
         x1 = self.inc(x)
@@ -59,14 +58,26 @@ class custom_UNet(nn.Module):
         self.up5 = Up.from_custom_residual_channels(32, 32, 32)
         self.out = nn.Sequential(nn.Linear(32, 32), nn.Linear(32, 2))
         
+ 
+    def features(self, x):
+        """
 
-    def forward(self, x):
+            Features for cINN.
+
+        """
         x1 = self.inc(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
         x6 = self.down5(x5)
+
+        return x1, x2, x3, x4, x5, x6
+
+    def forward(self, x):
+
+        x1, x2, x3, x4, x5, x6 = self.features(x)
+
         x = self.up1(x6, x5)
         x = self.up2(x, x4)
         x = self.up3(x, x3)
