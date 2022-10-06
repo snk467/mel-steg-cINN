@@ -35,7 +35,6 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
         inputs = inputs.to(device).float()
         targets = targets.to(device).float()
         
-
         # Zero your gradients for every batch!
         optimizer.zero_grad()
 
@@ -104,12 +103,12 @@ def train(config=None):
         # Create datasets for training & validation
         logger.info("Import training set.")
         
-        training_set = SpectrogramsDataset(global_config.spectrogram_files_directory,
+        training_set = SpectrogramsDataset(global_config.dataset_location,
                                            train=True,
                                            size=global_config.dataset_size,
                                            augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
         logger.info("Import validation set.")
-        validation_set = SpectrogramsDataset(global_config.spectrogram_files_directory,
+        validation_set = SpectrogramsDataset(global_config.dataset_location,
                                              train=False,
                                              size=global_config.dataset_size,
                                              augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
@@ -263,15 +262,14 @@ def log_metrics(metrics, phase, step, batch_id=None):
         
     logger.info(logger_message)
     
-def show_element(input_in, target_in, filename_in, clear_input_in):
+def show_element(input_in, target_in, label, clear_input_in):
     input = input_in.detach().cpu()
     target = target_in.detach().cpu()
-    filename = filename_in
     clear_input = clear_input_in
 
     print("L shape:", input.shape)
     print("ab shape:", target.shape)
-    print("Filename:", filename)
+    print("Label:", label)
 
     L_img = toImage(input).convert('RGB') 
     
@@ -378,7 +376,8 @@ def prepare_globals(present_data=False):
     }
 
     if global_config.present_data:
-        with Image.open("/notebooks/mel-steg-cINN/Lenna_(test_image).png") as img:
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        with Image.open(os.path.join(dir_path,"Lenna_(test_image).png")) as img:
             img.show()
         
 def run(sweep=False, present_data=False):
@@ -395,7 +394,8 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Train UNET for mel-spectrogram colorization.')
     parser.add_argument('--sweep', action='store_true', help='run Weights & Biases sweep')
+    parser.add_argument('--visualize', action='store_true', help='display sanity check data')
 
     args = parser.parse_args()
     
-    run(args.sweep)
+    run(args.sweep, args.visualize)

@@ -3,12 +3,11 @@ from torch.utils.data import Dataset
 from Utilities import *
 from Normalization import *
 import torch
-from PIL import Image
-import torchvision.transforms as transforms
 import gzip
 import Logger
 from zipfile import ZipFile
 import zipfile
+import h5py
         
 # Get logger
 logger = Logger.get_logger(__name__)
@@ -16,17 +15,20 @@ logger = Logger.get_logger(__name__)
 
 class SpectrogramsDataset(Dataset):
 
-    def __init__(self, dataset_directory, train, colormap="parula_norm_lab", augmentor=None, size=None):
-        files = get_files(dataset_directory)
-        self.dataset_directory = dataset_directory
+    def __init__(self, dataset_location, train, colormap="parula_norm_lab", augmentor=None, size=None):
 
-        # Filter spectrograms from files
-        self.inputs = sorted(list(filter(lambda k: f"spectrogram_L_channel_{colormap}" in k and k.endswith(".gz"), files)), key = lambda filename: int(filename.replace(".", "_").split("_")[-3]))
-        self.targets = sorted(list(filter(lambda k: f"spectrogram_ab_channels_{colormap}" in k and k.endswith(".gz"), files)), key = lambda filename: int(filename.replace(".", "_").split("_")[-3]))         
-         
+        dataset_file = h5py.File(dataset_location, 'r')
+        self.dataset = dataset_file["melspectrograms"]
+        
         if size is not None and size < len(self.inputs):
-            self.inputs = self.inputs[:size]
-            self.targets = self.targets[:size]
+            self.inputs = self.dataset[:size, :, :, 0]
+            self.targets = self.dataset[:size, :, :, [1,2]]
+        else:
+            self.inputs = self.dataset[:, :, :, 0]
+            self.targets = self.dataset[:, :, :, [1,2]]
+
+        print(self.inputs.shape)
+        print(self.targets.shape)
             
         if train:
             dataset_range = slice(len(self.inputs) // 10, len(self.inputs))
@@ -47,24 +49,23 @@ class SpectrogramsDataset(Dataset):
     def __getitem__(self, index):  
 
         # Load tensors
-        input = self.__load_tensor(os.path.join(self.dataset_directory , self.inputs[index]))
-        target = self.__load_tensor(os.path.join(self.dataset_directory , self.targets[index]))
+        input = torch.from_numpy(self.inputs[index])
+        target = torch.from_numpy(self.targets[index])
+
+        # Adjust axies 
+        input = torch.reshape(input, (1, input.shape[0], input.shape[1]))
+        target = torch.permute(target, (2, 0, 1))
         
         # Augment tensor
         clear_input = input
         if self.augmentor is not None:
             input = self.augmentor(input)
 
+        # Prepare label
+        label = f"melspectrogram_{str(index).zfill(5)}",
+
         # Return tensors
-        return input, target, os.path.basename(self.inputs[index]), clear_input
-
-    def __load_tensor(self, compressed_tensor_path):
-
-        with gzip.open(compressed_tensor_path, 'rb') as file:
-            tensor = torch.load(file)        
-                                 
-        return tensor
-        
+        return input, target, label, clear_input        
 
     def __len__(self):
         return len(self.inputs)

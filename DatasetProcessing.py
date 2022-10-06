@@ -1,7 +1,5 @@
 import argparse
 import soundfile
-import gzip
-import shutil
 import os
 import random
 import Exceptions
@@ -9,13 +7,10 @@ import Configuration
 import Normalization 
 import Logger
 import torch
-import matplotlib.pyplot as plt
-from zipfile import ZipFile
-import zipfile
 from Utilities import *
 from tqdm import tqdm
-import torchvision.transforms as torch_trans
 import PIL.Image as Image
+import h5py
 logger = Logger.get_logger(__name__)
 
 class AudioDatasetProcessor:
@@ -134,17 +129,29 @@ class AudioDatasetProcessor:
         self.logger.info("Processing audio.")
         initial_id = 0        
         
+        dataset_length = len(self.audio_files)
+        dataset_file = h5py.File(os.path.join(args.output_dir, f"melspectrograms_{args.colormap}_{dataset_length}.hdf5"), "w")
+        melspectrograms_dataset = dataset_file.create_dataset("melspectrograms", shape=(len(self.audio_files), 128, 128, 1), maxshape=(dataset_length, 512, 512, None), compression="gzip")
+
+        melspectrograms_dataset.attrs["colormap"] = args.colormap
+
         for audio_files_batch in tqdm(self.__get_batches(self.audio_files), leave=False, desc="Precessing audio files batches"):
             loaded_audio = self.load_audio_files(audio_files_batch)
 
             color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio, colormap=args.colormap)
 
+            if initial_id == 0:
+                mel_spectrogram_shape = color_mel_spectrograms[initial_id].mel_spectrogram_data.shape
+                melspectrograms_dataset.resize((dataset_length, mel_spectrogram_shape[0], mel_spectrogram_shape[1], mel_spectrogram_shape[2]))  
+
             restored_audio = None
             if args.restore:
                 restored_audio = self.restore_audio(color_mel_spectrograms)
 
-            self.save_data(args, initial_id, loaded_audio, color_mel_spectrograms, restored_audio)     
+            self.save_data(args, initial_id, loaded_audio, color_mel_spectrograms, melspectrograms_dataset, restored_audio)     
             initial_id += audio_files_batch.size
+
+        dataset_file.close()
 
         self.logger.info("Audio processing done.")
 
@@ -156,7 +163,7 @@ class AudioDatasetProcessor:
 
         return labels
 
-    def save_data(self, args, initial_id, loaded_audio, color_mel_spectrograms, restored_audio=None):
+    def save_data(self, args, initial_id, loaded_audio, color_mel_spectrograms, melspectrograms_dataset, restored_audio=None):
         digits = 5
         id = initial_id
         if restored_audio is not None:
@@ -177,11 +184,12 @@ class AudioDatasetProcessor:
             # Save audio
             soundfile.write(os.path.join(args.output_dir, f"audio_original_{id_string}.wav"), audio.get_audio(), self.config.sample_rate)
 
-            # Save color spectrogram
+            # Save spectrogram data
             colormap_string = str(color_spec.colormap).lower()
-            spectrogram_data = color_spec.mel_spectrogram_data
+            melspectrograms_dataset[id] = color_spec.mel_spectrogram_data
 
             if args.debug and id == initial_id:
+                spectrogram_data = color_spec.mel_spectrogram_data
                 img = Image.fromarray((spectrogram_data[:,:,0] * 255).astype(np.uint8), 'L')
                 img.show(title="mel_spectrogram_data_L")
 
@@ -189,70 +197,13 @@ class AudioDatasetProcessor:
                 img.show(title="mel_spectrogram_data_a")
 
                 img = Image.fromarray((spectrogram_data[:,:,2] * 255).astype(np.uint8), 'L')
-                img.show(title="mel_spectrogram_data_b")
-
-            # # Save labels if colormap is applied
-            # if color_spec.colormap is not None:
-            #     colormap = Colormap.from_colormap(colormap_string)
-            #     labels_tensor = self.__prepare_labels_tensor(colormap.get_indexes_from_colors(spectrogram_data), colormap)
-            #     labels_file_basename= f"labels_{colormap_string}_{id_string}"
-
-            #     self.__save_compressed_tensor(args.output_dir, labels_tensor, labels_file_basename)
-
-            
-
-            # Save spectrogram data
-            file_name = f"spectrogram_{colormap_string}_{id_string}"
-            if "rgb" in str(color_spec.colormap):                
-                plt.imsave(os.path.join(args.output_dir, f"{file_name}.png"), color_spec.mel_spectrogram_data)
-            elif "lab" in str(color_spec.colormap):             
-                L_tensor = torch.from_numpy(spectrogram_data[:,:,0])
-                L_tensor = torch.reshape(L_tensor, (1, L_tensor.shape[0], L_tensor.shape[1]))
-                L_channel_file_basename = f"spectrogram_L_channel_{colormap_string}_{id_string}"
-                self.__save_compressed_tensor(args.output_dir, L_tensor, L_channel_file_basename)
-
-                ab_tensor = torch.from_numpy(spectrogram_data[:,:,1:])
-                ab_tensor = torch.permute(ab_tensor, (2, 0, 1))
-                ab_channel_file_basename = f"spectrogram_ab_channels_{colormap_string}_{id_string}"
-                self.__save_compressed_tensor(args.output_dir, ab_tensor, ab_channel_file_basename)
-
-                if args.debug and id == initial_id:
-                    toImage = torch_trans.ToPILImage()
-                    img = toImage(L_tensor) 
-                    img.show(title="L channel")        
-                    
-                    img = toImage(ab_tensor[0]) 
-                    img.show(title="a channel")  
-                    
-                    img = toImage(ab_tensor[1]) 
-                    img.show(title="b channel")  
-
-            else:
-                with open(os.path.join(args.output_dir, f"{file_name}.npy"), 'wb') as file:
-                    np.save(file, color_spec.mel_spectrogram_data) 
+                img.show(title="mel_spectrogram_data_b")            
 
             # Save audio
             if args.restore:
                 soundfile.write(os.path.join(args.output_dir, f"audio_restored_{colormap_string}_{id_string}.wav"), restored_audio.get_audio(), self.config.sample_rate)      
 
             id += 1
-
-    def __save_compressed_tensor(self, dest_dir, input_tensor, filename):
-        tensor_path =  os.path.join(dest_dir, f"{filename}.pt")
-        gz_filename = f"{os.path.basename(tensor_path)}.gz"
-        gz_path = os.path.join(dest_dir, gz_filename)
-
-        torch.save(input_tensor, tensor_path)
-
-        if os.path.exists(gz_path):
-            os.remove(gz_path)
-
-        with open(tensor_path, 'rb') as f_in:
-            with gzip.open(f'{tensor_path}.gz', 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
-
-        os.remove(tensor_path)
-        logger.debug(f"Saved tensor of shape {input_tensor.shape} in {gz_path}.")
 
 def get_args():
     parser = argparse.ArgumentParser()

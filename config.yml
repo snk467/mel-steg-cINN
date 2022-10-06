@@ -35,12 +35,12 @@ audio_parameters:
 
 unet_training:    
     global_parameters:
-        spectrogram_files_directory: /storage/data/spectrograms_6000
+        dataset_location: /home/snikiel/Documents/STUDIA/EiTI/Praca_magisterska/Testy/Output/melspectrograms_parula_norm_lab_10.hdf5
         batch_checkpoint: 1
         add_noise: True
         noise_mean: [0.0]
         noise_variance: [0.001, 0.001, 0.0]
-        dataset_size: 50 #If null then whole dataset is taken
+        dataset_size: null #If null then whole dataset is taken
         sweep_count: 50
         save_model: False
     sweep_config:        
@@ -50,7 +50,7 @@ unet_training:
             name: 'VALID_AVG_Loss'
         parameters: 
             batch_size: 
-                value: 10
+                value: 1
             epochs: 
                 value: 5
             lr: 
@@ -65,7 +65,7 @@ unet_training:
             model:
                 values: ["custom_unet", "unet"]
     regular_config:
-        batch_size: 10
+        batch_size: 1
         epochs: 5
         lr: 0.001
         enable_lr_scheduler: False
