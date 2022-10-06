@@ -1,18 +1,5 @@
 import Exceptions
 import numpy as np
-
-# def find_nearest_two(self, array, value):
-    #     nearest = self.find_nearest(array, value)
-
-    #     shift = abs(array[0] - array[1]) / 2.0
-
-    #     if nearest >= value:
-    #         shift *= -1.0
-
-    #     second_nearest = self.find_nearest(array, value + shift)
-
-    #     return nearest, second_nearest
-
     
 # region Utilities
 
@@ -803,7 +790,7 @@ class Colormap:
     }
 
     def __init__(self, colors: np.ndarray):
-        self.colors = colors
+        self.colors = np.array(colors)
         self.values = np.linspace(0.0, 1.0, num=len(self.colors))
 
     @classmethod
@@ -826,72 +813,53 @@ class Colormap:
     def get_colormaps(self):
         return self.__colormaps
 
-    def __find_nearest_index_value(self, value: float):
-        arr = np.asarray(self.values)
-        idx = (np.abs(arr - value)).argmin()
+    def __find_nearest_index_value(self, value):
+        arr = self.values
+        idx = np.abs(value - arr).argmin()       
         return idx    
 
-    def __find_nearest_index_color(self, color: np.ndarray):        
+    def __find_nearest_index_color(self, color: np.ndarray):
+        assert color.ndim == 1
+        assert color.shape[0] == 3        
+
         idx = np.linalg.norm(self.colors - color, axis=1).argmin()
         return idx
 
-    def get_color(self, value: float):
+    def get_color(self, value):
         idx = self.__find_nearest_index_value(value)
         return self.colors[idx]
 
     def get_colors_from_values(self, array_of_values: np.ndarray):
-        img = np.zeros(shape=(array_of_values.shape[0],array_of_values.shape[1], 3), dtype=float)
+        assert array_of_values.ndim == 2
 
-        for x in range(array_of_values.shape[0]):
-            for y in range(array_of_values.shape[1]):
-                img[x,y] = self.get_color(array_of_values[x,y])
+        indexes = self.get_indexes_from_values(array_of_values)
 
-        return img
+        return self.get_colors_from_indexes(indexes)
 
     def get_colors_from_indexes(self, indexes: np.ndarray):
-        colors = np.zeros(shape=(indexes.shape[0],indexes.shape[1], 3), dtype=float)
+        assert indexes.ndim == 2
 
-        for x in range(indexes.shape[0]):
-            for y in range(indexes.shape[1]):
-                colors[x,y] = self.colors[indexes[x,y]]
-
-        return colors
+        return self.colors[indexes]
 
     def get_indexes_from_values(self, values: np.ndarray):
-        indexes = np.zeros(shape=(values.shape[0],values.shape[1]), dtype=int)
+        assert values.ndim == 2
 
-        for x in range(values.shape[0]):
-            for y in range(values.shape[1]):
-                indexes[x,y] = self.__find_nearest_index_value(values[x,y])
-
-        return indexes
+        return np.abs(values[:,:,None] - self.values).argmin(axis=2)
 
     def get_indexes_from_colors(self, colors: np.ndarray):
-        indexes = np.zeros(shape=(colors.shape[0],colors.shape[1]), dtype=int)
+        assert colors.ndim == 3
 
-        for x in range(colors.shape[0]):
-            for y in range(colors.shape[1]):
-                indexes[x,y] = self.__find_nearest_index_color(colors[x,y])
-
-        return indexes
+        return np.linalg.norm(colors[:,:,None] - self.colors, axis=3).argmin(axis=2)
 
     def get_values_from_indexes(self, indexes: np.ndarray):
-        array = np.zeros(shape=(indexes.shape[0],indexes.shape[1]), dtype=float)
-
-        for x in range(indexes.shape[0]):
-            for y in range(indexes.shape[1]):
-                array[x,y] = self.values[indexes[x,y]]
-
-        return array
+        return self.values[indexes]
 
     def get_values_from_colors(self, colors: np.ndarray):
-        array = np.zeros(shape=(colors.shape[0],colors.shape[1]), dtype=float)
+        assert colors.ndim == 3
 
-        for x in range(colors.shape[0]):
-            for y in range(colors.shape[1]):
-                array[x,y] = self.get_inverse_value(colors[x,y])
+        indexes = self.get_indexes_from_colors(colors)
 
-        return array
+        return self.values[indexes]
 
     def get_inverse_color(self, color: np.ndarray):
         idx = self.__find_nearest_index_color(color)
@@ -913,14 +881,14 @@ class Colormap:
         return len(self.colors)
 
 if __name__ == "__main__":
-    # LUT tests
-    import random
+    from timeit import default_timer as timer
+    from tqdm import tqdm
 
-    random.seed(1234)
+    # LUT tests
+    def generate_random_array_nxn(n):
+        return np.random.uniform(low=0.0, high=1.0, size=(n,n))
     
-    test_array_values = np.array([[random.random(), random.random(), random.random()],
-                                  [random.random(), random.random(), random.random()],
-                                  [random.random(), random.random(), random.random()]])
+    test_array_values = generate_random_array_nxn(3)
 
     print("test_array_values:\n", test_array_values)
     print()
@@ -955,3 +923,27 @@ if __name__ == "__main__":
     assert (indexes_from_values==indexes_from_colors).all()
     assert (colors_from_values==colors_from_indexes).all()
     assert (values_from_indexes==values_from_colors).all()
+
+
+    print("Performance tests:")
+
+    test_size = 100
+    array_size = 512
+    array_of_arrays = []
+    
+    for i in range(0,test_size):
+        array_of_arrays.append(generate_random_array_nxn(array_size))
+    
+    times = []
+    total_start = timer()
+    for i in tqdm(range(0, test_size), leave=False):
+        start = timer()
+        colormap.get_colors_from_values(array_of_arrays[i])
+        end = timer()
+        times.append(end - start)
+    total_end = timer()
+
+    print("Dataset size:", test_size)
+    print("Test array size:", array_size, "x", array_size)
+    print("Average calculations time:", np.asarray(times).mean(), "seconds")
+    print("Total time:", total_end - total_start, "seconds")
