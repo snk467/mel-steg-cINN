@@ -130,19 +130,25 @@ class AudioDatasetProcessor:
         initial_id = 0        
         
         dataset_length = len(self.audio_files)
+        os.makedirs(args.output_dir, exist_ok=True)
         dataset_file = h5py.File(os.path.join(args.output_dir, f"melspectrograms_{args.colormap}_{dataset_length}.hdf5"), "w")
-        melspectrograms_dataset = dataset_file.create_dataset("melspectrograms", shape=(len(self.audio_files), 128, 128, 1), maxshape=(dataset_length, 512, 512, None), compression="gzip")
 
-        melspectrograms_dataset.attrs["colormap"] = args.colormap
+        dataset_shape = (dataset_length, self.config.n_mels, self.config.n_mels)
+        if args.colormap is not None:
+            # RGB/Lab channels
+            dataset_shape += (3,)
+            
+        melspectrograms_dataset = dataset_file.create_dataset("melspectrograms",
+                                                                shape=dataset_shape,
+                                                                compression="gzip",
+                                                                chunks=(1,) + dataset_shape[1:])
+
+        melspectrograms_dataset.attrs["colormap"] = str(args.colormap)
 
         for audio_files_batch in tqdm(self.__get_batches(self.audio_files), leave=False, desc="Precessing audio files batches"):
             loaded_audio = self.load_audio_files(audio_files_batch)
 
             color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio, colormap=args.colormap)
-
-            if initial_id == 0:
-                mel_spectrogram_shape = color_mel_spectrograms[initial_id].mel_spectrogram_data.shape
-                melspectrograms_dataset.resize((dataset_length, mel_spectrogram_shape[0], mel_spectrogram_shape[1], mel_spectrogram_shape[2]))  
 
             restored_audio = None
             if args.restore:
