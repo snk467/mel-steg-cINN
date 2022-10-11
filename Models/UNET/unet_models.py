@@ -74,10 +74,7 @@ class custom_UNet(nn.Module):
 
         return x1, x2, x3, x4, x5, x6
 
-    def forward(self, x):
-
-        x1, x2, x3, x4, x5, x6 = self.features(x)
-
+    def forward_from_features(self, x1, x2, x3, x4, x5, x6):
         x = self.up1(x6, x5)
         x = self.up2(x, x4)
         x = self.up3(x, x3)
@@ -86,6 +83,57 @@ class custom_UNet(nn.Module):
         x = x.permute((0,2,3,1))
         x = self.out(x)
         ab = x.permute((0,3,1,2))
+
+        return ab
+
+    def forward(self, x):
+
+        x1, x2, x3, x4, x5, x6 = self.features(x)
+        ab = self.forward_from_features(x1, x2, x3, x4, x5, x6 )
+        
         return ab
     
+class UNet_256(nn.Module):
+    def __init__(self, n_channels):
+        super(UNet_256, self).__init__()
+        self.n_channels = n_channels
+        
+        self.inc = DoubleConv(n_channels, 32)
+        self.down1 = Down(32, 64)
+        self.down2 = Down(64, 128)
+        # 256x64x64
+        self.down3 = Down(128, 256)
+        self.up1 = Up.from_residual_half_channels(256, 128)
+        self.up2 = Up.from_residual_half_channels(128, 64)
+        self.up3 = Up.from_residual_half_channels(64, 32)
+        self.out = nn.Sequential(nn.Linear(32, 32), nn.Linear(32, 2))
+        
+ 
+    def features(self, x):
+        """
+
+            Features for cINN.
+
+        """
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+
+        return x1, x2, x3, x4
+
+    def forward_from_features(self, x1, x2, x3, x4):
+        x = self.up1(x4, x3)
+        x = self.up2(x, x2)
+        x = self.up3(x, x1)
+        x = x.permute((0,2,3,1))
+        x = self.out(x)
+        ab = x.permute((0,3,1,2))
+
+        return ab
+
+    def forward(self, x):
+        x1, x2, x3, x4 = self.features(x)
+        ab = self.forward_from_features(x1, x2, x3, x4)
+        return ab
 

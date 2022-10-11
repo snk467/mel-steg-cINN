@@ -64,7 +64,7 @@ class SpectrogramsDataset(Dataset):
         # Prepare label
         label = f"melspectrogram_{str(index).zfill(5)}",
 
-        # Return tensors
+        # Return tensors(L_noise, ab, string_name, L_clear)
         return input, target, label, clear_input        
 
     def __len__(self):
