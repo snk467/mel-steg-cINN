@@ -28,7 +28,7 @@ class subnet_coupling_layer(nn.Module):
     def log_e(self, s):
         return self.clamp * 0.636 * torch.atan(s / self.clamp)
 
-    def forward(self, x, c=[], rev=False):
+    def forward(self, x, c=[], rev=False, jac=True):
         x1, x2 = (x[0].narrow(1, 0, self.split_len1),
                   x[0].narrow(1, self.split_len1, self.split_len2))
         c_star = self.subnet(torch.cat(c, 1))
@@ -53,7 +53,7 @@ class subnet_coupling_layer(nn.Module):
             y1 = (x1 - t2) / self.e(s2)
             self.last_jac = - self.log_e(s1) - self.log_e(s2)
 
-        return [torch.cat((y1, y2), 1)]
+        return (torch.cat((y1, y2), 1),), self.jacobian(x)
 
     def jacobian(self, x, c=[], rev=False):
         return torch.sum(self.last_jac, dim=tuple(range(1, self.ndims+1)))

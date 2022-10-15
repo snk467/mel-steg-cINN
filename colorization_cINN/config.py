@@ -3,8 +3,8 @@
 #################
 
 # Image size of L, and ab channels respectively:
-img_dims_orig = (256, 256)
-img_dims = (img_dims_orig[0] // 4, img_dims_orig[0] // 4)
+img_dims_orig = (512, 512)
+img_dims = (img_dims_orig[0] // 8, img_dims_orig[0] // 8)
 # Clamping parameter in the coupling blocks (higher = less stable but more expressive)
 clamping = 1.5
 
@@ -20,7 +20,7 @@ log10_lr = -4.0                     # Log learning rate
 lr = 10**log10_lr
 lr_feature_net = lr                 # lr of the cond. network
 
-n_epochs = 120 * 4
+n_epochs = 5 # 120 * 4
 n_its_per_epoch = 32 * 8            # In case the epochs should be cut short after n iterations
 
 weight_decay = 1e-5

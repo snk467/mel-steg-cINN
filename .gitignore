@@ -165,6 +165,10 @@ cython_debug/
 # Tests
 /Testy
 /unet_tests.py
+/test.py
 
 # Wandb
 /wandb
+
+# Cython built files
+colorization_cINN/joint_bilateral_filter.c

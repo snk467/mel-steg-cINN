@@ -61,36 +61,36 @@ def _add_conditioned_section(nodes, depth, channels_in, channels, cond_level):
                            'F_args':{'leaky_slope': 5e-2, 'channels_hidden':channels}},
                           conditions=[conditions[0]], name=F'conv_{k}'))
 
-        nodes.append(Node([nodes[-1].out0], conv_1x1, {'M':random_orthog(channels_in)}))
+        nodes.append(Node([nodes[-1].out0], Fixed1x1Conv, {'M':random_orthog(channels_in)}))
 
 
 def _add_split_downsample(nodes, split, downsample, channels_in, channels):
     if downsample=='haar':
-        nodes.append(Node([nodes[-1].out0], haar_multiplex_layer, {'rebalance':0.5, 'order_by_wavelet':True}, name='haar'))
+        nodes.append(Node([nodes[-1].out0], HaarDownsampling, {'rebalance':0.5, 'order_by_wavelet':True}, name='haar'))
     if downsample=='reshape':
-        nodes.append(Node([nodes[-1].out0], i_revnet_downsampling, {}, name='reshape'))
+        nodes.append(Node([nodes[-1].out0], IRevNetDownsampling, {}, name='reshape'))
 
     for i in range(2):
-        nodes.append(Node([nodes[-1].out0], conv_1x1, {'M':random_orthog(channels_in*4)}))
+        nodes.append(Node([nodes[-1].out0], Fixed1x1Conv, {'M':random_orthog(channels_in*4)}))
         nodes.append(Node([nodes[-1].out0],
-                      glow_coupling_layer,
+                      GLOWCouplingBlock,
                       {'clamp':c.clamping, 'F_class':F_conv,
                        'F_args':{'kernel_size':1, 'leaky_slope': 1e-2, 'channels_hidden':channels}},
                       conditions=[]))
 
     if split:
-        nodes.append(Node([nodes[-1].out0], split_layer,
+        nodes.append(Node([nodes[-1].out0], Split,
                         {'split_size_or_sections': split, 'dim':0}, name='split'))
 
-        output = Node([nodes[-1].out1], flattening_layer, {}, name='flatten')
+        output = Node([nodes[-1].out1], Flatten, {}, name='flatten')
         nodes.insert(-2, output)
         nodes.insert(-2, OutputNode([output.out0], name='out'))
 
 def _add_fc_section(nodes):
-    nodes.append(Node([nodes[-1].out0], flattening_layer, {}, name='flatten'))
+    nodes.append(Node([nodes[-1].out0], Flatten, {}, name='flatten'))
     for k in range(n_blocks_fc):
-        nodes.append(Node([nodes[-1].out0], permute_layer, {'seed':k}, name=F'permute_{k}'))
-        nodes.append(Node([nodes[-1].out0], glow_coupling_layer,
+        nodes.append(Node([nodes[-1].out0], PermuteRandom, {'seed':k}, name=F'permute_{k}'))
+        nodes.append(Node([nodes[-1].out0], GLOWCouplingBlock,
                 {'clamp':c.clamping, 'F_class':F_fully_connected, 'F_args':{'internal_size':512}},
                 conditions=[], name=F'fc_{k}'))
 

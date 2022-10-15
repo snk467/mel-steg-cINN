@@ -45,23 +45,23 @@ class SpectrogramsDataset(Dataset):
     def __getitem__(self, index):  
 
         # Load tensors
-        input = torch.from_numpy(self.dataset[self.indexes[index], :, :, 0])
-        target = torch.from_numpy(self.dataset[self.indexes[index], :, :, [1,2]])
+        L = torch.from_numpy(self.dataset[self.indexes[index], :, :, 0])
+        ab = torch.from_numpy(self.dataset[self.indexes[index], :, :, [1,2]])
 
         # Adjust axies 
-        input = torch.reshape(input, (1, input.shape[0], input.shape[1]))
-        target = torch.permute(target, (2, 0, 1))
+        L = torch.reshape(L, (1, L.shape[0], L.shape[1]))
+        ab = torch.permute(ab, (2, 0, 1))
         
         # Augment tensor
-        clear_input = input
+        L_clear = L
         if self.augmentor is not None:
-            input = self.augmentor(input)
+            L = self.augmentor(L)
 
         # Prepare label
         label = f"melspectrogram_{str(index).zfill(5)}",
 
         # Return tensors(L_noise, ab, string_name, L_clear)
-        return input, target, label, clear_input        
+        return L, ab, label, L_clear        
 
     def __len__(self):
         return len(self.indexes)

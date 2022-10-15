@@ -95,8 +95,6 @@ def validate(model, validation_loader):
 
     return avg_metrics
 
-
-
 def train(config=None):    
     with wandb.init(project="mel-steg-cINN", entity="snikiel", config=config):
         config = wandb.config    
@@ -298,7 +296,6 @@ def show_element(input_in, target_in, label, clear_input_in):
                                np.array(border),
                                np.array(rgb_img)))).show()
 
-    
 def get_rgb_image_from_lab_channels(L_channel, ab_channels):
     colormap_lab = LUT.Colormap.from_colormap("parula_norm_lab")  
     

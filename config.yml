@@ -32,15 +32,14 @@ audio_parameters:
         standard_deviation: 17.880760586984575
         global_min: -2.3468124866485596
         global_max: 2.127270221710205
-
 unet_training:    
     global_parameters:
-        dataset_location: /storage/data/melspectrograms_parula_norm_lab_13100.hdf5
-        batch_checkpoint: 25
+        dataset_location: /home/snikiel/Documents/STUDIA/EiTI/Praca_magisterska/Testy/Output/melspectrograms_parula_norm_lab_10.hdf5
+        batch_checkpoint: 10
         add_noise: True
         noise_mean: [0.0]
         noise_variance: [0.001, 0.001, 0.0]
-        dataset_size: null #If null then whole dataset is taken
+        dataset_size: 1000 #If null then whole dataset is taken
         sweep_count: 50
         save_model: True
     sweep_config:        
@@ -65,9 +64,16 @@ unet_training:
             model:
                 value: "unet_256"
     regular_config:
-        batch_size: 8
+        batch_size: 10
         epochs: 5
         lr: 0.001
         enable_lr_scheduler: False
         loss_function: "MSELoss"
         model: "unet_256"
+cinn_training:
+    feature_net_path: /home/snikiel/Documents/REPOS/mel-steg-cINN/feature_net_model.pt
+    batch_size: 3
+    dataset_size: 20
+
+training:
+    dataset_location: /home/snikiel/OneDrive/melspectrograms_dataset/melspectrograms_parula_norm_lab_13100.hdf5
