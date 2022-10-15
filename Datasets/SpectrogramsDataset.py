@@ -17,26 +17,22 @@ class SpectrogramsDataset(Dataset):
 
     def __init__(self, dataset_location, train, colormap="parula_norm_lab", augmentor=None, size=None):
 
-        dataset_file = h5py.File(dataset_location, 'r')
-        self.dataset = dataset_file["melspectrograms"]
+        self.__dataset_file = h5py.File(dataset_location, 'r')
+        self.dataset = self.__dataset_file["melspectrograms"]
         
-        if size is not None and size < len(self.inputs):
-            self.inputs = self.dataset[:size, :, :, 0]
-            self.targets = self.dataset[:size, :, :, [1,2]]
+        if size is not None and size < len(self.dataset):
+            self.indexes = list(range(size))
         else:
-            self.inputs = self.dataset[:, :, :, 0]
-            self.targets = self.dataset[:, :, :, [1,2]]
+            self.indexes = list(range(len(self.dataset)))
 
-        print(self.inputs.shape)
-        print(self.targets.shape)
+        print(len(self.indexes))
             
         if train:
-            dataset_range = slice(len(self.inputs) // 10, len(self.inputs))
+            dataset_range = slice(len(self.indexes) // 10, len(self.indexes))
         else:
-            dataset_range = slice(len(self.inputs) // 10)        
+            dataset_range = slice(len(self.indexes) // 10)        
 
-        self.inputs = self.inputs[dataset_range]
-        self.targets = self.targets[dataset_range]
+        self.indexes = self.indexes[dataset_range]
         
         if train:            
             logger.info(f"Train dataset size: {self.__len__()}")            
@@ -49,8 +45,8 @@ class SpectrogramsDataset(Dataset):
     def __getitem__(self, index):  
 
         # Load tensors
-        input = torch.from_numpy(self.inputs[index])
-        target = torch.from_numpy(self.targets[index])
+        input = torch.from_numpy(self.dataset[self.indexes[index], :, :, 0])
+        target = torch.from_numpy(self.dataset[self.indexes[index], :, :, [1,2]])
 
         # Adjust axies 
         input = torch.reshape(input, (1, input.shape[0], input.shape[1]))
@@ -68,4 +64,7 @@ class SpectrogramsDataset(Dataset):
         return input, target, label, clear_input        
 
     def __len__(self):
-        return len(self.inputs)
+        return len(self.indexes)
+    
+    def release_resources(self):
+        self.__dataset_file.close()

@@ -73,6 +73,7 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
     
     torch.cuda.empty_cache()
     
+    
     return avg_metrics, step
 
 def validate(model, validation_loader):
@@ -181,6 +182,9 @@ def train(config=None):
         # Save model
         if global_config.save_model:
             torch.save(model, os.path.join(wandb.run.dir, "model.pt"))
+        
+        training_set.release_resources()
+        validation_set.release_resources()
         
         # Log average epoch duration
         avg_epoch_runtime = sum(epoch_durations) / len(epoch_durations)

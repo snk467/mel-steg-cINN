@@ -35,14 +35,14 @@ audio_parameters:
 
 unet_training:    
     global_parameters:
-        dataset_location: /home/snikiel/Documents/STUDIA/EiTI/Praca_magisterska/Testy/Output/melspectrograms_parula_norm_lab_10.hdf5
-        batch_checkpoint: 1
+        dataset_location: /storage/data/melspectrograms_parula_norm_lab_13100.hdf5
+        batch_checkpoint: 25
         add_noise: True
         noise_mean: [0.0]
         noise_variance: [0.001, 0.001, 0.0]
         dataset_size: null #If null then whole dataset is taken
         sweep_count: 50
-        save_model: False
+        save_model: True
     sweep_config:        
         method: 'grid'
         metric: 
@@ -50,24 +50,24 @@ unet_training:
             name: 'VALID_AVG_Loss'
         parameters: 
             batch_size: 
-                value: 1
+                value: 10
             epochs: 
                 value: 5
             lr: 
-                values: [0.1, 0.05, 0.01, 0.005, 0.001, 0.00075, 0.0005, 0.00025, 0.0001, 0.000075, 0.00005, 0.000025, 0.00001]
+                values: [0.000075, 0.00005, 0.000025, 0.00001]
                 # distribution: 'uniform'
                 # max: 1e-2
                 # min: 1e-5
             enable_lr_scheduler:
                 value: False
             loss_function:
-                value: "HuberLoss"
+                value: "MSELoss"
             model:
-                values: ["custom_unet", "unet"]
+                value: "unet_256"
     regular_config:
-        batch_size: 1
+        batch_size: 8
         epochs: 5
         lr: 0.001
         enable_lr_scheduler: False
         loss_function: "MSELoss"
-        model: "custom_unet"
+        model: "unet_256"

@@ -2,3 +2,4 @@ torchmetrics
 scikit-image
 munch
 wandb
+h5py
