@@ -1,4 +1,4 @@
-import Exceptions
+import exceptions
 import numpy as np
     
 # region Utilities
@@ -797,13 +797,13 @@ class Colormap:
     def from_colormap(cls, colormap="parula_rgb"):
 
         if type(colormap) != str:
-            raise Exceptions.ArgumentError
+            raise exceptions.ArgumentError
 
         if colormap in Colormap.__colormaps:
             colors = Colormap.__colormaps[colormap]
             return cls(colors)
         else:
-            raise Exceptions.ArgumentError
+            raise exceptions.ArgumentError
 
     @classmethod
     def from_colors_list(cls, colors: np.ndarray):

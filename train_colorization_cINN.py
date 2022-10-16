@@ -10,16 +10,16 @@ from torch.nn.functional import avg_pool2d#, interpolate
 from torch.autograd import Variable
 import numpy as np
 import tqdm
+
 from Noise import GaussianNoise
 
 # TODO: Support mojego configu
 import colorization_cINN.config as c
-import Configuration
-config = Configuration.load()
+import configuration
+config = configuration.load()
 
 import colorization_cINN.model as model
 
-# TODO: Support datasetów
 from datasets import SpectrogramsDataset
 
 # TODO: Własny moduł wizualizacji

@@ -1,24 +1,19 @@
 import time
 import torch
-import torchvision
-import torchmetrics as torch_metrics
 import random
 import wandb
+import os
+import metrics
+import utilities
+import configuration
+import logger
+import argparse
+import torchmetrics as torch_metrics
 from datasets import SpectrogramsDataset 
-import torch.nn.functional as torch_func
-import Configuration
 from Models.UNET.unet_models import *
 from Noise import *
-import Logger
-import munch
-import argparse
 from PIL import Image   
-from PIL import ImageDraw
-from PIL import ImageFont
-import torchvision.transforms as torch_trans
-import LUT
-import numpy as np
-import os
+from visualization import show_batch
 
 
 def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
@@ -43,25 +38,25 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
         outputs = model(inputs)
 
         # Compute the loss and its gradients
-        loss, metrics = gather_batch_metrics(outputs, targets)
-        loss.backward()
+        batch_loss, batch_metrics = metrics.gather_batch_metrics(outputs, targets)
+        batch_loss.backward()
 
         # Adjust learning weights
         optimizer.step()
 
         # Gather data
-        running_metrics = add_metrics(running_metrics, metrics)
-        avg_metrics = add_metrics(avg_metrics, metrics)
+        running_metrics = metrics.add_metrics(running_metrics, batch_metrics)
+        avg_metrics = metrics.add_metrics(avg_metrics, batch_metrics)
         
         # Report
         if i % global_config.batch_checkpoint == (global_config.batch_checkpoint - 1):
             step +=1
 
             # Calculate current checkpoint metrics
-            current_metrics = divide_metrics(running_metrics, global_config.batch_checkpoint)
+            current_metrics = metrics.divide_metrics(running_metrics, global_config.batch_checkpoint)
 
             # Log metrics           
-            log_metrics(metrics, "train", step, batch_id=i)
+            metrics.log_metrics(batch_metrics, "train", step, batch_id=i)
             
             wandb.log({"epoch": epoch + ((i+1)/len(training_loader))}, step=step)
 
@@ -69,7 +64,7 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
             running_metrics = None
 
         if (i + 1) == len(training_loader):
-            avg_metrics = divide_metrics(avg_metrics, len(training_loader))
+            avg_metrics = metrics.divide_metrics(avg_metrics, len(training_loader))
     
     torch.cuda.empty_cache()
     
@@ -87,11 +82,11 @@ def validate(model, validation_loader):
         
         voutputs = model(vinputs)
 
-        vloss, metrics = gather_batch_metrics(voutputs, vtargets)
+        _, batch_metrics = metrics.gather_batch_metrics(voutputs, vtargets)
 
-        avg_metrics = add_metrics(avg_metrics, metrics)
+        avg_metrics = metrics.add_metrics(avg_metrics, batch_metrics)
     
-    avg_metrics = divide_metrics(avg_metrics, len(validation_loader) )
+    avg_metrics = metrics.divide_metrics(avg_metrics, len(validation_loader) )
 
     return avg_metrics
 
@@ -120,7 +115,7 @@ def train(config=None):
         if global_config.present_data:
             print("Input example:")
             example_id = random.randint(0, len(training_set) - 1)
-            show_element(*training_set[example_id])
+            show_batch(*training_set[example_id])
         
         # Create model
         model = models[config.model](n_channels=1)
@@ -163,8 +158,8 @@ def train(config=None):
             wandb.log({"learning_rate": scheduler.optimizer.param_groups[0]['lr']}, step=step)
 
             # Log metrics
-            log_metrics(train_metrics, "TRAIN AVG", step)
-            log_metrics(validation_metrics, "VALID AVG", step)
+            metrics.log_metrics(train_metrics, "TRAIN AVG", step)
+            metrics.log_metrics(validation_metrics, "VALID AVG", step)
 
             # Log epoch duration
             epoch_duration = time.time() - epoch_start_time
@@ -207,145 +202,29 @@ def predict_example(model, dataset, desc=None):
     output = model(batched_input)
     print(desc)
     print("Result:")
-    show_element(batched_input[0], output[0], filename, clear_input)
+    show_batch(batched_input[0], output[0], filename, clear_input)
     print("Target:")
-    show_element(input, target, filename, clear_input) 
-
-def gather_batch_metrics(outputs, targets):
-    metrics = dict(metrics_functions)     
-    loss = None
-    for func in metrics_functions:
-        if func == "Loss":
-            loss = metrics_functions[func](outputs, targets)
-            metrics[func] = loss.item()
-        else:
-            metrics[func] = metrics_functions[func](outputs, targets).item()
-
-    return loss, metrics
-
-def add_metrics(metrics1, metrics2):
-    if metrics1 is None:
-        return dict(metrics2)
-
-    metrics_sum = dict(metrics1)
-    for metrics in metrics2:                
-        metrics_sum[metrics] += metrics2[metrics]
-    
-    return metrics_sum
-
-def divide_metrics(metrics, divisor):
-    
-    if metrics is None:
-        return None
-    
-    metrics_divided = dict(metrics)
-    
-    for metrics_name in metrics:                
-            metrics_divided[metrics_name] /= divisor
-            
-    return metrics_divided  
-
-def log_metrics(metrics, phase, step, batch_id=None):
-    
-    if batch_id is not None:
-        logger_message = f"        batch {batch_id + 1}"
-    else:
-        logger_message =f"{phase} METRICS"
-    
-    for metrics_name in metrics:
-        # Log to stdout
-        logger_message += f" {metrics_name}: {metrics[metrics_name]}"
-
-        # Log to Weights & Biases
-        wandb.log({f'{phase.replace(" ", "_")}_{metrics_name}': metrics[metrics_name]}, step=step)
-        
-    # Uncomment if you want to log memory usage
-    # logger_message += f" Memory: {torch.cuda.memory_allocated(device)}/{torch.cuda.get_device_properties(device).total_memory}"
-        
-    logger.info(logger_message)
-    
-def show_element(input_in, target_in, label, clear_input_in):
-    input = input_in.detach().cpu()
-    target = target_in.detach().cpu()
-    clear_input = clear_input_in
-
-    print("L shape:", input.shape)
-    print("ab shape:", target.shape)
-    print("Label:", label)
-
-    L_img = toImage(input).convert('RGB') 
-    
-    L_clear_img = toImage(clear_input).convert('RGB')       
-
-    a_img = toImage(target[0]).convert('RGB') 
-
-    b_img = toImage(target[1]).convert('RGB') 
-
-    rgb_img = get_rgb_image_from_lab_channels(clear_input, target)  
-    
-    border_width = 10
-    border = Image.fromarray(np.zeros((target.shape[1], border_width))).convert('RGB')
-    
-    Image.fromarray(np.hstack((np.array(L_img),
-                               np.array(border),
-                               np.array(L_clear_img),
-                               np.array(border),
-                               np.array(a_img),
-                               np.array(border),
-                               np.array(b_img),
-                               np.array(border),
-                               np.array(rgb_img)))).show()
-
-def get_rgb_image_from_lab_channels(L_channel, ab_channels):
-    colormap_lab = LUT.Colormap.from_colormap("parula_norm_lab")  
-    
-    L_np = L_channel.numpy()
-    ab_np = ab_channels.numpy()    
-    
-    Lab_np = np.concatenate((L_np, ab_np))
-    Lab_np = np.moveaxis(Lab_np, 0, -1)
-    
-    indexes = colormap_lab.get_indexes_from_colors(Lab_np)                            
-    colormap_rgb = LUT.Colormap.from_colormap("parula_rgb")
-    img_target = colormap_rgb.get_colors_from_indexes(indexes)
-    img_target = toImage((img_target * 255).astype(np.uint8))
-    
-    return img_target
-
-def test_CUDA():
-    if torch.cuda.is_available():
-        logger.info("PyTorch is running on CUDA!")
-        logger.info(f"Number of CUDA devices: {torch.cuda.device_count()}")
-        device_id = torch.cuda.current_device()
-        logger.info(f"Device ID: {device_id}")
-        logger.info(f"Device name: {torch.cuda.get_device_name(device_id)}")
-        return True
-    else:
-        logger.warning("PyTorch is not running on CUDA!")
-        return False
+    show_batch(input, target, filename, clear_input) 
 
 def prepare_globals(present_data=False):    
     # Get logger
     global logger
-    logger = Logger.get_logger(__name__)
+    logger = logger.get_logger(__name__)
 
     # Load configuration
     global config
-    config = Configuration.load()
+    config = configuration.load()
 
     # Initialize Weights & Biases
     wandb.login(key='***REMOVED***')
     
-    is_cuda = test_CUDA()
+    is_cuda = utilities.test_CUDA()
     
     global device
     if is_cuda:
         device = torch.device('cuda')
     else:
         device = torch.device('cpu')   
-        
-    global toImage
-    toImage = torch_trans.ToPILImage()
     
     # Set metrics functions    
     global metrics_functions

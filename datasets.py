@@ -1,16 +1,16 @@
 import random
 from torch.utils.data import Dataset
-from Utilities import *
-from Normalization import *
+from utilities import *
+from normalization import *
 import torch
 import gzip
-import Logger
+import logger
 from zipfile import ZipFile
 import zipfile
 import h5py
         
 # Get logger
-logger = Logger.get_logger(__name__)
+logger = logger.get_logger(__name__)
 
 
 class SpectrogramsDataset(Dataset):

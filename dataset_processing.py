@@ -2,16 +2,16 @@ import argparse
 import soundfile
 import os
 import random
-import Exceptions
-import Configuration
-import Normalization 
-import Logger
+import exceptions
+import configuration
+import normalization 
+import logger
 import torch
-from Utilities import *
+from utilities import *
 from tqdm import tqdm
 import PIL.Image as Image
 import h5py
-logger = Logger.get_logger(__name__)
+logger = logger.get_logger(__name__)
 
 class AudioDatasetProcessor:
     
@@ -20,7 +20,7 @@ class AudioDatasetProcessor:
 
         self.audio_files = get_files(audo_files_directory)
 
-        self.logger = Logger.get_logger(__name__)
+        self.logger = logger.get_logger(__name__)
 
     def load_audio_files(self, audio_files):
         loaded_audio = []
@@ -29,7 +29,7 @@ class AudioDatasetProcessor:
             audio_full, sample_rate = load_audio(audio_file)
 
             if sample_rate != self.config.sample_rate:
-                raise Exceptions.SampleRateError
+                raise exceptions.SampleRateError
 
             audio = Audio(audio_full, self.config)
 
@@ -87,7 +87,7 @@ class AudioDatasetProcessor:
 
             mel_spectrograms = self.get_mel_spectrograms(loaded_audio, normalized=False, range=None)
 
-            batch_means, batch_standard_deviations, _, _ = Normalization.calculate_statistics(mel_spectrograms)
+            batch_means, batch_standard_deviations, _, _ = normalization.calculate_statistics(mel_spectrograms)
             means.extend(batch_means)
             standard_deviations.extend(batch_standard_deviations)
 
@@ -109,7 +109,7 @@ class AudioDatasetProcessor:
 
             mel_spectrograms = self.get_mel_spectrograms(loaded_audio, normalized=True, range=None)
 
-            _, _, batch_mins, batch_maxs = Normalization.calculate_statistics(mel_spectrograms)
+            _, _, batch_mins, batch_maxs = normalization.calculate_statistics(mel_spectrograms)
 
             mins.extend(batch_mins)
             maxs.extend(batch_maxs)
@@ -230,10 +230,10 @@ if __name__ == "__main__":
     args = get_args()
 
     if args.debug:
-        Logger.enable_debug_mode()
+        logger.enable_debug_mode()
 
     # Get configuration
-    config = Configuration.load()
+    config = configuration.load()
     logger.info("Configuration loaded.")
 
     # Get audio processor

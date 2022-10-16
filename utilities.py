@@ -2,11 +2,12 @@ import os
 import librosa
 import random
 import logging
-import Normalization
+import normalization
 import numpy as np
-from Exceptions import ArgumentError
+from exceptions import ArgumentError
 from LUT import Colormap
 from skimage import color
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +44,13 @@ class Audio:
         mel_spectrogram = librosa.power_to_db(spectrogram)
 
         if normalized and (self.config.mean is not None) and (self.config.standard_deviation is not None):
-            mel_spectrogram = Normalization.normalize(mel_spectrogram, self.config.mean, self.config.standard_deviation)
+            mel_spectrogram = normalization.normalize(mel_spectrogram, self.config.mean, self.config.standard_deviation)
 
         if range is not None and self.config.global_min is not None and self.config.global_max is not None:
             if len(range) != 2:
                 logger.error("Invalid range shape!");
                 raise ArgumentError
-            mel_spectrogram = Normalization.scale_global_minmax(mel_spectrogram, self.config.global_min, self.config.global_max, min(range), max(range))
+            mel_spectrogram = normalization.scale_global_minmax(mel_spectrogram, self.config.global_min, self.config.global_max, min(range), max(range))
 
         return MelSpectrogram.from_value(mel_spectrogram, normalized, range, self.config)
 
@@ -105,11 +106,11 @@ class MelSpectrogram:
 
         # Inverse scaling
         if self.range is not None:
-            mel_spectrogram_data = Normalization.scale_global_minmax(mel_spectrogram_data, min(self.range), max(self.range), self.config.global_min, self.config.global_max)
+            mel_spectrogram_data = normalization.scale_global_minmax(mel_spectrogram_data, min(self.range), max(self.range), self.config.global_min, self.config.global_max)
 
         # Inverse normalization
         if self.normalized:
-            mel_spectrogram_data = Normalization.normalize(mel_spectrogram_data, self.config.mean, self.config.standard_deviation, inverse=True)
+            mel_spectrogram_data = normalization.normalize(mel_spectrogram_data, self.config.mean, self.config.standard_deviation, inverse=True)
 
         # Inverse mel spectrogram
         mel_spectrogram_data = librosa.db_to_power(mel_spectrogram_data)
@@ -132,6 +133,18 @@ def get_files(files_directory):
 def load_audio(file_path):
     audio, sample_rate = librosa.load(file_path, sr=None)
     return audio, sample_rate
+
+def test_CUDA():
+    if torch.cuda.is_available():
+        logger.info("PyTorch is running on CUDA!")
+        logger.info(f"Number of CUDA devices: {torch.cuda.device_count()}")
+        device_id = torch.cuda.current_device()
+        logger.info(f"Device ID: {device_id}")
+        logger.info(f"Device name: {torch.cuda.get_device_name(device_id)}")
+        return True
+    else:
+        logger.warning("PyTorch is not running on CUDA!")
+        return False
 
 
 
