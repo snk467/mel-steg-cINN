@@ -4,7 +4,7 @@ import torchvision
 import torchmetrics as torch_metrics
 import random
 import wandb
-from Datasets.SpectrogramsDataset import SpectrogramsDataset 
+from datasets import SpectrogramsDataset 
 import torch.nn.functional as torch_func
 import Configuration
 from Models.UNET.unet_models import *

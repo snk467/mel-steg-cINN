@@ -20,7 +20,7 @@ config = Configuration.load()
 import colorization_cINN.model as model
 
 # TODO: Support datasetów
-from Datasets.SpectrogramsDataset import SpectrogramsDataset
+from datasets import SpectrogramsDataset
 
 # TODO: Własny moduł wizualizacji
 # import viz
