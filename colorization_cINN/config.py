@@ -20,7 +20,7 @@ log10_lr = -4.0                     # Log learning rate
 lr = 10**log10_lr
 lr_feature_net = lr                 # lr of the cond. network
 
-n_epochs = 5 # 120 * 4
+n_epochs = 2 # 120 * 4
 n_its_per_epoch = 32 * 8            # In case the epochs should be cut short after n iterations
 
 weight_decay = 1e-5
@@ -39,7 +39,7 @@ shuffle_val = False
 val_start = 0                       # use a slice [start:stop] of the entire val set
 val_stop = 5120
 
-end_to_end = True                   # Whether to leave the cond. net fixed
+end_to_end = False                   # Whether to leave the cond. net fixed
 no_cond_net = False                 # Whether to use a cond. net at all
 pretrain_epochs = 0                 # Train only the inn for n epochs before end-to-end
 

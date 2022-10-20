@@ -172,34 +172,7 @@ feature_net.eval()
 # TODO: Ładowanie zapisanej sieci
 # feature_net.class8_ab.state_dict()['weight'].copy_(torch.from_numpy(np.load('./pts_in_hull.npy').T).view(2, 313, 1, 1))
 
-def prepare_batch(x):
 
-    net_feat = combined_model.module.feature_network
-    net_inn  = combined_model.module.inn
-    net_cond = combined_model.module.fc_cond_network
-
-    with torch.no_grad():
-        x_l, x_ab, _, _ = x
-
-        # Na razie tego nie używamy
-        x_ab = F.interpolate(x_ab, size=c.img_dims)
-        # x_ab += 5e-2 * torch.cuda.FloatTensor(x_ab.shape).normal_()
-
-    if c.end_to_end:
-        features = net_feat.features(x_l)
-        # TODO: Sprawdzić czy to dobrze działa w naszym przypadku
-        # features = features[:, :, 1:-1, 1:-1]
-    else:
-        with torch.no_grad():
-            features = net_feat.features(x_l)
-            # features = features[:, :, 1:-1, 1:-1]
-
-    with torch.no_grad():
-        ab_pred = net_feat.forward_from_features(*features)
-
-    cond = [features[-1], net_cond(features[-1]).squeeze()]
-
-    return x_l.detach(), x_ab.detach(), cond, ab_pred
 
 class WrappedModel(nn.Module):
     def __init__(self, feature_network, fc_cond_network, inn):
@@ -250,12 +223,66 @@ class WrappedModel(nn.Module):
     def reverse_sample(self, z, cond):
         return self.inn(z, cond, rev=True)
 
+    def train(self, mode: bool = True, feature_mode: bool = False):
+        self.feature_network.train(feature_mode)
+        self.fc_cond_network.train(mode)
+        self.inn.train(mode)
+
+    def eval(self):
+        self.feature_network.eval()
+        self.fc_cond_network.eval()
+        self.inn.eval()
+
+    def istraining(self):
+        return self.inn.training, self.feature_network.training
+
+    def prepare_batch(self, x):
+        mode = self.istraining()
+        self.eval()
+
+        net_feat = self.feature_network
+        net_inn  = self.inn
+        net_cond = self.fc_cond_network
+
+    
+        x_l, x_ab, _, _ = x
+
+        # print("BEFORE")
+        # print(x_l.shape)
+        # print(x_ab.shape)
+
+        if x_l.ndim == 3:
+            x_l = x_l[None, :]
+
+        if x_ab.ndim == 3:
+            x_ab = x_ab[None, :]
+
+        # print("AFTER")
+        # print(x_l.shape)
+        # print(x_ab.shape)
+
+        # Na razie tego nie używamy
+        x_ab = F.interpolate(x_ab, size=c.img_dims)
+        # x_ab += 5e-2 * torch.cuda.FloatTensor(x_ab.shape).normal_()
+
+        features = net_feat.features(x_l)
+        # features = features[:, :, 1:-1, 1:-1]
+
+        ab_pred = net_feat.forward_from_features(*features)
+
+        # print(net_cond.training)
+        cond = [features[-1], net_cond(features[-1]).squeeze()]
+
+        self.train(*mode)
+
+        return x_l.detach(), x_ab.detach(), cond, ab_pred
+
 combined_model = WrappedModel(feature_net, fc_cond_net, cinn)
 combined_model.to(device)
-combined_model = nn.DataParallel(combined_model, device_ids=c.device_ids)
+# combined_model = nn.DataParallel(combined_model, device_ids=c.device_ids)
 
-params_trainable = (list(filter(lambda p: p.requires_grad, combined_model.module.inn.parameters()))
-                  + list(combined_model.module.fc_cond_network.parameters()))
+params_trainable = (list(filter(lambda p: p.requires_grad, combined_model.inn.parameters()))
+                  + list(combined_model.fc_cond_network.parameters()))
 
 optim = torch.optim.Adam(params_trainable, lr=c.lr, betas=c.betas, eps=1e-6, weight_decay=c.weight_decay)
 

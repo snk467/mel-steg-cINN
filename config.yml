@@ -72,7 +72,7 @@ unet_training:
         model: "unet_256"
 cinn_training:
     feature_net_path: /home/snikiel/Documents/REPOS/mel-steg-cINN/feature_net_model.pt
-    batch_size: 3
+    batch_size: 2
     dataset_size: 20
 
 training:

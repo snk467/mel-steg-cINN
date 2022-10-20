@@ -24,8 +24,6 @@ class SpectrogramsDataset(Dataset):
             self.indexes = list(range(size))
         else:
             self.indexes = list(range(len(self.dataset)))
-
-        print(len(self.indexes))
             
         if train:
             dataset_range = slice(len(self.indexes) // 10, len(self.indexes))

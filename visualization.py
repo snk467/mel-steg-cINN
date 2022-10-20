@@ -3,7 +3,7 @@ import PIL.Image as Image
 import numpy as np
 import LUT
 
-def show_batch(input_in, target_in, label, clear_input_in):
+def show_data(input_in, target_in, label, clear_input_in):
     input = input_in.detach().cpu()
     target = target_in.detach().cpu()
     clear_input = clear_input_in
@@ -12,13 +12,13 @@ def show_batch(input_in, target_in, label, clear_input_in):
     print("ab shape:", target.shape)
     print("Label:", label)
 
-    L_img = ToPILImage(input).convert('RGB') 
+    L_img = ToPILImage()(input).convert('RGB') 
     
-    L_clear_img = ToPILImage(clear_input).convert('RGB')       
+    L_clear_img = ToPILImage()(clear_input).convert('RGB')       
 
-    a_img = ToPILImage(target[0]).convert('RGB') 
+    a_img = ToPILImage()(target[0]).convert('RGB') 
 
-    b_img = ToPILImage(target[1]).convert('RGB') 
+    b_img = ToPILImage()(target[1]).convert('RGB') 
 
     rgb_img = __get_rgb_image_from_lab_channels(clear_input, target)  
     
@@ -47,6 +47,6 @@ def __get_rgb_image_from_lab_channels(L_channel, ab_channels):
     indexes = colormap_lab.get_indexes_from_colors(Lab_np)                            
     colormap_rgb = LUT.Colormap.from_colormap("parula_rgb")
     img_target = colormap_rgb.get_colors_from_indexes(indexes)
-    img_target = ToPILImage((img_target * 255).astype(np.uint8))
+    img_target = ToPILImage()((img_target * 255).astype(np.uint8))
     
     return img_target

@@ -13,7 +13,7 @@ from datasets import SpectrogramsDataset
 from Models.UNET.unet_models import *
 from Noise import *
 from PIL import Image   
-from visualization import show_batch
+from visualization import show_data
 
 
 def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
@@ -115,7 +115,7 @@ def train(config=None):
         if global_config.present_data:
             print("Input example:")
             example_id = random.randint(0, len(training_set) - 1)
-            show_batch(*training_set[example_id])
+            show_data(*training_set[example_id])
         
         # Create model
         model = models[config.model](n_channels=1)
@@ -202,9 +202,9 @@ def predict_example(model, dataset, desc=None):
     output = model(batched_input)
     print(desc)
     print("Result:")
-    show_batch(batched_input[0], output[0], filename, clear_input)
+    show_data(batched_input[0], output[0], filename, clear_input)
     print("Target:")
-    show_batch(input, target, filename, clear_input) 
+    show_data(input, target, filename, clear_input) 
 
 def prepare_globals(present_data=False):    
     # Get logger
