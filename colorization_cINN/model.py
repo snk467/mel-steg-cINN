@@ -16,7 +16,7 @@ import configuration
 
 config = configuration.load()
 
-feature_channels = 256
+feature_channels = 32
 fc_cond_length = 512
 n_blocks_fc = 8
 outputs = []
@@ -104,7 +104,7 @@ def _add_fc_section(nodes):
     nodes.append(Node([nodes[-1].out0], Flatten, {}, name='flatten'))
     for k in range(n_blocks_fc):
         nodes.append(Node([nodes[-1].out0], PermuteRandom, {'seed':k}, name=F'permute_{k}'))
-        subnet_kwargs = {'internal_size':512}
+        subnet_kwargs = {'internal_size': None}
         nodes.append(Node([nodes[-1].out0], GLOWCouplingBlock,
                 {'clamp':c.clamping, 'subnet_constructor':functools.partial(F_fully_connected, **subnet_kwargs)},
                 conditions=[conditions[1]], name=F'fc_{k}'))
@@ -155,7 +155,7 @@ if c.load_inn_only:
 
 # Load feature net
 from Models.UNET.unet_models import UNet_256
-feature_net = torch.load(config.cinn_training.feature_net_path, map_location=device)
+feature_net = UNet_256(1) # torch.load(config.cinn_training.feature_net_path, map_location=device)
 feature_net.to(device)
 feature_net.eval()
 
@@ -196,11 +196,11 @@ class WrappedModel(nn.Module):
         # x_ab += 5e-2 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
         if c.end_to_end:
-            _,_,_,features = self.feature_network.features(x_l)
+            features = self.feature_network.features(x_l)
             # features = features[:, :, 1:-1, 1:-1]
         else:
             with torch.no_grad():
-                _,_,_,features = self.feature_network.features(x_l)
+                features = self.feature_network.features(x_l)
                 # features = features[:, :, 1:-1, 1:-1]
 
         cond = [features, self.fc_cond_network(features).squeeze()]
@@ -270,7 +270,7 @@ class WrappedModel(nn.Module):
         features = net_feat.features(x_l)
         # features = features[:, :, 1:-1, 1:-1]
 
-        ab_pred = net_feat.forward_from_features(*features)
+        ab_pred = net_feat.forward_from_features(features)
 
         # print(net_cond.training)
         cond = [features[-1], net_cond(features[-1]).squeeze()]

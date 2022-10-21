@@ -3,8 +3,8 @@
 #################
 
 # Image size of L, and ab channels respectively:
-img_dims_orig = (512, 512)
-img_dims = (img_dims_orig[0] // 8, img_dims_orig[0] // 8)
+img_dims_orig = (80, 80)
+img_dims = (img_dims_orig[0], img_dims_orig[0])
 # Clamping parameter in the coupling blocks (higher = less stable but more expressive)
 clamping = 1.5
 

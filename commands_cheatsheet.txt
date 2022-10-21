@@ -1,6 +1,6 @@
 # Standard processing
-python DatasetProcessing.py --statistics -i ~/Documents/STUDIA/EiTI/Praca_magisterska/Materials/Dane/LJSpeech-1.1/wavs -o ./Data
-python DatasetProcessing.py -i ~/Documents/STUDIA/EiTI/Praca_magisterska/Materials/Dane/LJSpeech-1.1/wavs -o ./Data/dataset --colormap parula_norm_lab
+python dataset_processing.py --statistics -i ~/Documents/STUDIA/EiTI/Praca_magisterska/Materials/Dane/LJSpeech-1.1/wavs -o ./Data
+python dataset_processing.py -i ~/Documents/STUDIA/EiTI/Praca_magisterska/Materials/Dane/LJSpeech-1.1/wavs -o ./Data/dataset --colormap parula_norm_lab
 
 # Tests
-python DatasetProcessing.py -i ~/Documents/STUDIA/EiTI/Praca_magisterska/Testy/Dataset -o ~/Documents/STUDIA/EiTI/Praca_magisterska/Testy/Output --colormap parula_norm_lab
+python dataset_processing.py -i ~/Documents/STUDIA/EiTI/Praca_magisterska/Testy/Dataset -o ~/Documents/STUDIA/EiTI/Praca_magisterska/Testy/Output --colormap parula_norm_lab

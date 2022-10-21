@@ -1,8 +1,8 @@
 import numpy as np
 from tqdm import tqdm
-import logger
+import logger as logger_module
 
-logger = logger.get_logger(__name__)
+logger = logger_module.get_logger(__name__)
 
 def scale_minmax(X, min=0.0, max=1.0):
     X_std = (X - X.min()) / (X.max() - X.min())

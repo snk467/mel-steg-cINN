@@ -6,7 +6,7 @@ import os
 import metrics
 import utilities
 import configuration
-import logger
+import logger as logger_module
 import argparse
 import torchmetrics as torch_metrics
 from datasets import SpectrogramsDataset 
@@ -209,7 +209,7 @@ def predict_example(model, dataset, desc=None):
 def prepare_globals(present_data=False):    
     # Get logger
     global logger
-    logger = logger.get_logger(__name__)
+    logger = logger_module.get_logger(__name__)
 
     # Load configuration
     global config

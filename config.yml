@@ -32,6 +32,18 @@ audio_parameters:
         standard_deviation: 17.880760586984575
         global_min: -2.3468124866485596
         global_max: 2.127270221710205
+
+    resolution_80x80:
+        segment_length: 20224
+        sample_rate: 22050
+        hop_length: 256
+        window_length: 1024
+        n_mels: 80
+        mean: -34.110233672775486
+        standard_deviation: 17.9092818952677
+        global_min: -3.237250328063965
+        global_max: 1.4316513538360596
+
 unet_training:    
     global_parameters:
         dataset_location: /home/snikiel/Documents/STUDIA/EiTI/Praca_magisterska/Testy/Output/melspectrograms_parula_norm_lab_10.hdf5
@@ -71,9 +83,9 @@ unet_training:
         loss_function: "MSELoss"
         model: "unet_256"
 cinn_training:
-    feature_net_path: /notebooks/mel-steg-cINN/feature_net_model.pt
+    feature_net_path: /home/snikiel/Documents/REPOS/mel-steg-cINN/feature_net_model.pt
     batch_size: 2
     dataset_size: 20
 
 training:
-    dataset_location: /storage/data/melspectrograms_parula_norm_lab_13100.hdf5
+    dataset_location: /home/snikiel/OneDrive/melspectrograms_dataset/melspectrograms_parula_norm_lab_13100.hdf5

@@ -5,13 +5,12 @@ import random
 import exceptions
 import configuration
 import normalization 
-import logger
+import logger as logger_module
 import torch
 from utilities import *
 from tqdm import tqdm
 import PIL.Image as Image
 import h5py
-logger = logger.get_logger(__name__)
 
 class AudioDatasetProcessor:
     
@@ -20,7 +19,7 @@ class AudioDatasetProcessor:
 
         self.audio_files = get_files(audo_files_directory)
 
-        self.logger = logger.get_logger(__name__)
+        self.logger = logger_module.get_logger(__name__)
 
     def load_audio_files(self, audio_files):
         loaded_audio = []
@@ -230,24 +229,25 @@ if __name__ == "__main__":
     args = get_args()
 
     if args.debug:
-        logger.enable_debug_mode()
+        logger_module.enable_debug_mode()
 
     # Get configuration
     config = configuration.load()
     logger.info("Configuration loaded.")
 
     # Get audio processor
-    audio_processor = AudioDatasetProcessor(args.input_dir, config.audio_parameters.resolution_512x512)
+    audio_processor = AudioDatasetProcessor(args.input_dir, config.audio_parameters.resolution_80x80)
     logger.info("Audio processor initialized.")
 
     if args.statistics:
         mean, standard_deviation, min, max = audio_processor.get_statistics()
-        file = open(os.path.join(args.output_dir, "dataset_stats.txt"), "w")
+        file_location = os.path.join(args.output_dir, "dataset_stats.txt")
+        file = open(file_location, "w")
         file.write(f"mean: {mean}\n")
         file.write(f"standard_deviation: {standard_deviation}\n")
         file.write(f"global_min: {min}\n")
         file.write(f"global_max: {max}\n")
         file.close()
-        logger.info("Statistics saved.")
+        logger.info(f"Statistics saved to {file_location}")
     else:
         audio_processor.process(args)

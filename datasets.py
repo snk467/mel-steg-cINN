@@ -4,13 +4,13 @@ from utilities import *
 from normalization import *
 import torch
 import gzip
-import logger
+import logger as logger_module
 from zipfile import ZipFile
 import zipfile
 import h5py
         
 # Get logger
-logger = logger.get_logger(__name__)
+logger = logger_module.get_logger(__name__)
 
 
 class SpectrogramsDataset(Dataset):

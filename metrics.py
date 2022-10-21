@@ -1,9 +1,9 @@
-import logger
+import logger as logger_module
 import wandb
 
 class Metrics:
     def __init__(self, metrics_functions: dict):
-        self.logger = logger.get_logger(__name__)
+        self.logger = logger_module.get_logger(__name__)
         self.metrics_functions = metrics_functions
 
     def gather_batch_metrics(self, outputs, targets):
