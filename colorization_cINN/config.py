@@ -20,7 +20,7 @@ log10_lr = -4.0                     # Log learning rate
 lr = 10**log10_lr
 lr_feature_net = lr                 # lr of the cond. network
 
-n_epochs = 2 # 120 * 4
+n_epochs = 10 #120 * 4
 n_its_per_epoch = 32 * 8            # In case the epochs should be cut short after n iterations
 
 weight_decay = 1e-5

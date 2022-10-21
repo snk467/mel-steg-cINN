@@ -63,6 +63,10 @@ def run_cinn_training():
         print("EPOCH:", i_epoch)
 
         model.combined_model.train()
+        
+        print(model.combined_model.feature_network.training)
+        print(model.combined_model.fc_cond_network.training)
+        print(model.combined_model.inn.training)
 
         loss_history = []
 
@@ -89,11 +93,13 @@ def run_cinn_training():
                             ncols=83)
 
         for i_batch , x in iterator:
-            print("\tBATCH:", i_batch)
+            if (i_batch + 1) % 10 == 0:
+                print("\tBATCH:", i_batch + 1)
+                print("\tLOSS:", np.mean(np.array(loss_history), axis=0))
 
-            L, ab, _, _ = x
+            L, ab, _, _ = x            
 
-            input = torch.cat((L, ab), dim=1)
+            input = torch.cat((L, ab), dim=1).to(device)
 
             zz, jac = model.combined_model(input)
 
@@ -116,9 +122,10 @@ def run_cinn_training():
             epoch_losses[i] = min(epoch_losses[i], c.loss_display_cutoff)        
 
         with torch.no_grad():
+            print("VALIDATION...")
             ims = []        
             for x in validation_loader:
-                x_l, x_ab, cond, ab_pred = model.combined_model.prepare_batch(x)
+                x_l, x_ab, cond, ab_pred = model.combined_model.prepare_batch(x)                
 
                 for i in range(1):
                     z = sample_outputs(c.sampling_temperature, model.output_dimensions, x[0].shape[0])

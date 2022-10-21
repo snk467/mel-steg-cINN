@@ -67,7 +67,7 @@ def show_data(input_in, target_in, label, clear_input_in):
 def __get_rgb_image_from_lab_channels(L_channel: torch.Tensor, ab_channels: torch.Tensor):
     colormap_lab = LUT.Colormap.from_colormap("parula_norm_lab")  
 
-    result_size = min(L_channel.shape[1], ab_channels.shape[1])
+    result_size = max(L_channel.shape[1], ab_channels.shape[1])
 
     L_channel = F.interpolate(L_channel[None, :], (result_size, result_size))[0]
     ab_channels = F.interpolate(ab_channels[None, :], (result_size, result_size))[0]

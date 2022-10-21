@@ -246,6 +246,8 @@ class WrappedModel(nn.Module):
 
     
         x_l, x_ab, _, _ = x
+        x_l = x_l.to(device)
+        x_ab = x_ab.to(device)
 
         # print("BEFORE")
         # print(x_l.shape)

@@ -172,3 +172,6 @@ cython_debug/
 
 # Cython built files
 colorization_cINN/joint_bilateral_filter.c
+
+# Data
+/output
