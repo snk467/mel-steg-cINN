@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import sys
 import os
-from tkinter import S
 
 import torch
 import torch.nn
@@ -175,7 +174,7 @@ def run_cinn_training():
     x_ab_sampled, b = model.combined_model.reverse_sample(validation_z, cond)   
     print(x_ab_sampled.shape)
     print(b.shape)
-    visualization.show_data(x_l[0], F.interpolate(x_ab_sampled, size=c.img_dims_orig)[0], validation_batch[2], validation_batch[3])
+    visualization.show_data(x_l[0], x_ab_sampled[0], validation_batch[2], validation_batch[3])
 
 if __name__ == "__main__":
     run_cinn_training()
