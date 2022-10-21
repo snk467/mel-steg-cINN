@@ -270,6 +270,8 @@ class WrappedModel(nn.Module):
         features = net_feat.features(x_l)
         # features = features[:, :, 1:-1, 1:-1]
 
+        
+        # print(features.shape)
         ab_pred = net_feat.forward_from_features(features)
 
         # print(net_cond.training)
