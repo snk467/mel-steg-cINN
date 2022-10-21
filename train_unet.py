@@ -3,7 +3,7 @@ import torch
 import random
 import wandb
 import os
-import metrics
+from metrics import Metrics
 import utilities
 import configuration
 import logger as logger_module
@@ -14,6 +14,7 @@ from Models.UNET.unet_models import *
 from Noise import *
 from PIL import Image   
 from visualization import show_data
+from datetime import datetime
 
 
 def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
@@ -128,7 +129,7 @@ def train(config=None):
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', verbose=False, patience=2, min_lr=0.0, factor=0.1)
         
         # Get loss function
-        metrics_functions["Loss"] = loss_functions[config.loss_function].to(device) 
+        metrics.metrics_functions["Loss"] = loss_functions[config.loss_function].to(device) 
 
         # Print initial parameters
         print_initial_parameters(config)
@@ -174,7 +175,9 @@ def train(config=None):
         
         # Save model
         if global_config.save_model:
-            torch.save(model, os.path.join(wandb.run.dir, "model.pt"))
+            dataset_name = os.path.splitext(os.path.basename(global_config.dataset_location))[0]
+            timestamp = datetime.now().strftime("%d%m%Y%H%M%S")
+            torch.save(model, os.path.join(wandb.run.dir, f"model_{config.model}_{global_config.dataset_size}_{dataset_name}_{timestamp}.pt"))
         
         training_set.release_resources()
         validation_set.release_resources()
@@ -226,8 +229,7 @@ def prepare_globals(present_data=False):
     else:
         device = torch.device('cpu')   
     
-    # Set metrics functions    
-    global metrics_functions
+    # Set metrics functions   
     metrics_functions = {
         "Loss": None,
         "MSE": torch_metrics.MeanSquaredError().to(device),
@@ -237,6 +239,9 @@ def prepare_globals(present_data=False):
         # "MAPE": torch_metrics.MeanAbsolutePercentageError().to(device)
         
     }
+    
+    global metrics
+    metrics = Metrics(metrics_functions)  
         
     global loss_functions 
     loss_functions = { 

@@ -141,7 +141,7 @@ def run_cinn_training():
 
                 #     i += 1
 
-                # print("cond.shape",cond[0].shape)
+                   # print("cond.shape",cond[0].shape)
 
                     x_ab_sampled = model.combined_model.reverse_sample(z, cond)
 
