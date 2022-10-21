@@ -155,7 +155,7 @@ if c.load_inn_only:
 
 # Load feature net
 from Models.UNET.unet_models import UNet_256
-feature_net = UNet_256(1) # torch.load(config.cinn_training.feature_net_path, map_location=device)
+feature_net = torch.load(config.cinn_training.feature_net_path, map_location=device)
 feature_net.to(device)
 feature_net.eval()
 
@@ -273,7 +273,7 @@ class WrappedModel(nn.Module):
         ab_pred = net_feat.forward_from_features(features)
 
         # print(net_cond.training)
-        cond = [features[-1], net_cond(features[-1]).squeeze()]
+        cond = [features, net_cond(features).squeeze()]
 
         self.train(*mode)
 
