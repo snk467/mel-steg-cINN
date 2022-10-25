@@ -9,6 +9,7 @@ from torch.nn.functional import avg_pool2d#, interpolate
 from torch.autograd import Variable
 import numpy as np
 import tqdm
+import torchmetrics as torch_metrics
 
 from Noise import GaussianNoise
 import torch.nn.functional as F
@@ -36,6 +37,8 @@ if c.load_file:
 class dummy_loss(object):
     def item(self):
         return 1.
+    
+metric = torch_metrics.MeanSquaredError().to(device)
 
 def sample_outputs(sigma, out_shape, batch_size):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
@@ -123,7 +126,8 @@ def run_cinn_training():
 
         with torch.no_grad():
             print("VALIDATION...")
-            ims = []        
+            ims = []    
+            mse = []
             for x in validation_loader:
                 x_l, x_ab, cond, ab_pred = model.combined_model.prepare_batch(x)                
 
@@ -144,12 +148,16 @@ def run_cinn_training():
                    # print("cond.shape",cond[0].shape)
 
                     x_ab_sampled = model.combined_model.reverse_sample(z, cond)
+                    
+                    mse.append(metric(x_ab, x_ab_sampled[0]).item())
 
                 # print("\tSampled ab:", x_ab_sampled[0].shape)
                 # TODO: Prezentacja wyników
                 # ims.extend(list(data.norm_lab_to_rgb(x_l, x_ab_sampled)))
 
                 break
+                
+            print("MSE metric:", np.mean(np.array(mse)))
 
         if i_epoch >= c.pretrain_epochs * 2:
             model.weight_scheduler.step(epoch_losses[0])

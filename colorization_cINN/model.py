@@ -288,7 +288,7 @@ combined_model.to(device)
 params_trainable = (list(filter(lambda p: p.requires_grad, combined_model.inn.parameters()))
                   + list(combined_model.fc_cond_network.parameters()))
 
-optim = torch.optim.Adam(params_trainable, lr=c.lr, betas=c.betas, eps=1e-6, weight_decay=c.weight_decay)
+optim = torch.optim.Adam(params_trainable, lr=c.lr)
 
 sched_factor = 0.2
 sched_patience = 8
