@@ -46,7 +46,7 @@ audio_parameters:
 
 unet_training:    
     global_parameters:
-        dataset_location: /home/snikiel/Documents/STUDIA/EiTI/Praca_magisterska/Testy/Output/melspectrograms_parula_norm_lab_10.hdf5
+        dataset_location: /path/to/melspectrograms/dataset.hdf5
         batch_checkpoint: 10
         add_noise: True
         noise_mean: [0.0]
@@ -83,9 +83,9 @@ unet_training:
         loss_function: "MSELoss"
         model: "unet_256"
 cinn_training:
-    feature_net_path: /notebooks/mel-steg-cINN/model_unet_256_None_melspectrograms_parula_norm_lab_13100_80x80_21102022181501.pt
+    feature_net_path: /path/to/feature/net/model.pt
     batch_size: 10
     dataset_size: 100
 
 training:
-    dataset_location: /storage/data/melspectrograms_parula_norm_lab_13100_80x80.hdf5
+    dataset_location: /path/to/melspectrograms/dataset.hdf5

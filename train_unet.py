@@ -11,7 +11,7 @@ import argparse
 import torchmetrics as torch_metrics
 from datasets import SpectrogramsDataset 
 from Models.UNET.unet_models import *
-from Noise import *
+from noise import *
 from PIL import Image   
 from visualization import show_data
 from datetime import datetime

@@ -11,7 +11,7 @@ import numpy as np
 import tqdm
 import torchmetrics as torch_metrics
 
-from Noise import GaussianNoise
+from noise import GaussianNoise
 import torch.nn.functional as F
 
 # TODO: Support mojego configu

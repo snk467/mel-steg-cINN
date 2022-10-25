@@ -175,3 +175,9 @@ colorization_cINN/joint_bilateral_filter.c
 
 # Data
 /output
+
+# Models
+/models/model_unet_256_None_melspectrograms_parula_norm_lab_13100_80x80_21102022181501.pt
+
+# Local configuration files
+config_local.yml
