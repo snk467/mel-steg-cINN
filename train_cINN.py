@@ -16,8 +16,7 @@ import torch.nn.functional as F
 
 # TODO: Support mojego configu
 import colorization_cINN.config as c
-import configuration
-config = configuration.load()
+from config import config
 
 import colorization_cINN.model as model
 

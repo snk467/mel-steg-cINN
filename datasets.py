@@ -63,6 +63,3 @@ class SpectrogramsDataset(Dataset):
 
     def __len__(self):
         return len(self.indexes)
-    
-    def release_resources(self):
-        self.__dataset_file.close()

@@ -3,10 +3,10 @@ import soundfile
 import os
 import random
 import exceptions
-import configuration
 import normalization 
 import logger as logger_module
 import torch
+from config import config
 from utilities import *
 from tqdm import tqdm
 import PIL.Image as Image
@@ -230,10 +230,6 @@ if __name__ == "__main__":
 
     if args.debug:
         logger_module.enable_debug_mode()
-
-    # Get configuration
-    config = configuration.load()
-    logger.info("Configuration loaded.")
 
     # Get audio processor
     audio_processor = AudioDatasetProcessor(args.input_dir, config.audio_parameters.resolution_80x80)

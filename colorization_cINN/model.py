@@ -12,9 +12,7 @@ from cINN_components.coeff_functs import *
 from colorization_cINN.subnet_coupling import *
 import colorization_cINN.config as c
 
-import configuration
-
-config = configuration.load()
+from config import config
 
 feature_channels = 32
 fc_cond_length = 512

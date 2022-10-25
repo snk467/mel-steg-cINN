@@ -5,7 +5,7 @@ import wandb
 import os
 from metrics import Metrics
 import utilities
-import configuration
+from config import config
 import logger as logger_module
 import argparse
 import torchmetrics as torch_metrics
@@ -17,7 +17,7 @@ from visualization import show_data
 from datetime import datetime
 
 
-def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
+def train_one_epoch(model, training_loader, optimizer, epoch, step):
     running_metrics = None
     avg_metrics = None
 
@@ -50,11 +50,11 @@ def train_one_epoch(model, training_loader, optimizer, config, epoch, step):
         avg_metrics = metrics.add_metrics(avg_metrics, batch_metrics)
         
         # Report
-        if i % global_config.batch_checkpoint == (global_config.batch_checkpoint - 1):
+        if i % common_config.batch_checkpoint == (common_config.batch_checkpoint - 1):
             step +=1
 
             # Calculate current checkpoint metrics
-            current_metrics = metrics.divide_metrics(running_metrics, global_config.batch_checkpoint)
+            current_metrics = metrics.divide_metrics(running_metrics, common_config.batch_checkpoint)
 
             # Log metrics           
             metrics.log_metrics(batch_metrics, "train", step, batch_id=i)
@@ -91,21 +91,21 @@ def validate(model, validation_loader):
 
     return avg_metrics
 
-def train(config=None):    
+def train(config = None):    
     with wandb.init(project="mel-steg-cINN", entity="snikiel", config=config):
         config = wandb.config    
     
         # Create datasets for training & validation
         logger.info("Import training set.")
         
-        training_set = SpectrogramsDataset(global_config.dataset_location,
+        training_set = SpectrogramsDataset(common_config.dataset_location,
                                            train=True,
-                                           size=global_config.dataset_size,
+                                           size=config.dataset_size,
                                            augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
         logger.info("Import validation set.")
-        validation_set = SpectrogramsDataset(global_config.dataset_location,
+        validation_set = SpectrogramsDataset(common_config.dataset_location,
                                              train=False,
-                                             size=global_config.dataset_size,
+                                             size=config.dataset_size,
                                              augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
 
         # Create data loaders for our datasets; shuffle for training, not for validation
@@ -113,7 +113,7 @@ def train(config=None):
         validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
 
         # Show first element
-        if global_config.present_data:
+        if common_config.present_data:
             print("Input example:")
             example_id = random.randint(0, len(training_set) - 1)
             show_data(*training_set[example_id])
@@ -143,7 +143,7 @@ def train(config=None):
             # Make sure gradient tracking is on, and do a pass over the data
             model.train(True)
             logger.info("       Model training.")
-            train_metrics, step = train_one_epoch(model, training_loader, optimizer, config, epoch, step)
+            train_metrics, step = train_one_epoch(model, training_loader, optimizer, epoch, step)
 
             # We don't need gradients on to do reporting
             model.train(False)
@@ -151,10 +151,6 @@ def train(config=None):
             # Validate model
             logger.info("       Model validation.")
             validation_metrics = validate(model, validation_loader)
-            
-            # LR schedule
-            if config.enable_lr_scheduler:
-                scheduler.step(train_metrics["Loss"])
                 
             wandb.log({"learning_rate": scheduler.optimizer.param_groups[0]['lr']}, step=step)
 
@@ -168,19 +164,16 @@ def train(config=None):
             epoch_durations.append(epoch_duration)
 
         # Predict first element from train
-        if global_config.present_data:
+        if common_config.present_data:
             predict_example(model, training_set, desc="Training set example")
             print()
             predict_example(model, validation_set, desc="Validation set example")
         
         # Save model
-        if global_config.save_model:
-            dataset_name = os.path.splitext(os.path.basename(global_config.dataset_location))[0]
+        if common_config.save_model:
+            dataset_name = os.path.splitext(os.path.basename(common_config.dataset_location))[0]
             timestamp = datetime.now().strftime("%d%m%Y%H%M%S")
-            torch.save(model, os.path.join(wandb.run.dir, f"model_{config.model}_{global_config.dataset_size}_{dataset_name}_{timestamp}.pt"))
-        
-        training_set.release_resources()
-        validation_set.release_resources()
+            torch.save(model, os.path.join(wandb.run.dir, f"model_{config.model}_{config.dataset_size}_{dataset_name}_{timestamp}.pt"))
         
         # Log average epoch duration
         avg_epoch_runtime = sum(epoch_durations) / len(epoch_durations)
@@ -194,7 +187,6 @@ def print_initial_parameters(config):
     logger.info(f"Batch size: {config.batch_size}")
     logger.info(f"Number of epochs {config.epochs}")
     logger.info(f"Learning rate: {config.lr}")
-    logger.info(f"LR scheduler enabled: {config.enable_lr_scheduler}")
     logger.info(f"Loss function: {config.loss_function}")
     logger.info(f"Model: {config.model}")
     
@@ -209,14 +201,10 @@ def predict_example(model, dataset, desc=None):
     print("Target:")
     show_data(input, target, filename, clear_input) 
 
-def prepare_globals(present_data=False):    
+def prepare_globals():    
     # Get logger
     global logger
     logger = logger_module.get_logger(__name__)
-
-    # Load configuration
-    global config
-    config = configuration.load()
 
     # Initialize Weights & Biases
     wandb.login(key='***REMOVED***')
@@ -250,10 +238,10 @@ def prepare_globals(present_data=False):
         "L1Loss": torch.nn.L1Loss()
     }
     
-    global global_config
-    global_config = config.unet_training.global_parameters
-    global_config.update({'present_data': present_data})
-    
+    global common_config
+    common_config = config.common
+    print(common_config)
+
     global models
     models = {
         "custom_unet": custom_UNet,
@@ -261,27 +249,27 @@ def prepare_globals(present_data=False):
         "unet_256": UNet_256
     }
 
-    if global_config.present_data:
+    if config.common.present_data:
         dir_path = os.path.dirname(os.path.realpath(__file__))
         with Image.open(os.path.join(dir_path,"Lenna_(test_image).png")) as img:
             img.show()
         
-def run(sweep=False, present_data=False):
+def run(sweep=False):
     
-    prepare_globals(present_data)
+    prepare_globals()
     
-    if sweep:        
-        sweep_id = wandb.sweep(config.unet_training.sweep_config, project="mel-steg-cINN", entity="snikiel")
-        wandb.agent(sweep_id, function=train, count=config.unet_training.global_parameters.sweep_count)
+    if sweep:       
+        print(config.sweep_config) 
+        sweep_id = wandb.sweep(config.sweep_config, project="mel-steg-cINN", entity="snikiel")
+        wandb.agent(sweep_id, function=train, count=config.common.sweep_count)
     else:
-        train(config.unet_training.regular_config)
+        train(config.unet_training)
 
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Train UNET for mel-spectrogram colorization.')
     parser.add_argument('--sweep', action='store_true', help='run Weights & Biases sweep')
-    parser.add_argument('--visualize', action='store_true', help='display sanity check data')
 
     args = parser.parse_args()
     
-    run(args.sweep, args.visualize)
+    run(args.sweep)
