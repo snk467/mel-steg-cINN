@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import sys
 import os
-
 import torch
 import torch.nn
 import torch.optim
@@ -10,16 +9,10 @@ from torch.autograd import Variable
 import numpy as np
 import tqdm
 import torchmetrics as torch_metrics
-
 from noise import GaussianNoise
 import torch.nn.functional as F
-
-# TODO: Support mojego configu
-import colorization_cINN.config as c
 from config import config
-
 import colorization_cINN.model as model
-
 from datasets import SpectrogramsDataset
 
 # TODO: Własny moduł wizualizacji
@@ -30,8 +23,8 @@ if torch.cuda.is_available():
 else:
     device = torch.device('cpu')  
 
-if c.load_file:
-    model.load(c.load_file)
+if config.cinn_training.load_file:
+    model.load(config.cinn_training.load_file)
 
 class dummy_loss(object):
     def item(self):
@@ -43,14 +36,14 @@ def sample_outputs(sigma, out_shape, batch_size):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
 
 def run_cinn_training():
-    tot_output_size = 2 * c.img_dims[0] * c.img_dims[1]
+    tot_output_size = 2 * config.cinn_training.img_dims[0] * config.cinn_training.img_dims[1]
 
-    training_set = SpectrogramsDataset(config.training.dataset_location,
+    training_set = SpectrogramsDataset(config.common.dataset_location,
                                     train=True,
                                     size=config.cinn_training.dataset_size,
                                     augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
 
-    validation_set = SpectrogramsDataset(config.training.dataset_location,
+    validation_set = SpectrogramsDataset(config.common.dataset_location,
                                     train=False,
                                     size=config.cinn_training.dataset_size,
                                     augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
@@ -61,7 +54,7 @@ def run_cinn_training():
 
 
 
-    for i_epoch in range(-c.pre_low_lr, c.n_epochs):
+    for i_epoch in range(-config.cinn_training.pre_low_lr, config.cinn_training.n_epochs):
         print("EPOCH:", i_epoch)
 
         model.combined_model.train()
@@ -75,26 +68,19 @@ def run_cinn_training():
     # Ustawainie lr odpowiednio do epoki
         if i_epoch < 0:
             for param_group in model.optim.param_groups:
-                param_group['lr'] = c.lr * 2e-2
+                param_group['lr'] = config.cinn_training.lr * 2e-2
         if i_epoch == 0:
             for param_group in model.optim.param_groups:
-                param_group['lr'] = c.lr
+                param_group['lr'] = config.cinn_training.lr
 
-        if c.end_to_end and i_epoch <= c.pretrain_epochs:
+        if config.cinn_training.end_to_end and i_epoch <= config.cinn_training.pretrain_epochs:
             for param_group in model.feature_optim.param_groups:
                 param_group['lr'] = 0
-            if i_epoch == c.pretrain_epochs:
+            if i_epoch == config.cinn_training.pretrain_epochs:
                 for param_group in model.feature_optim.param_groups:
                     param_group['lr'] = 1e-4
 
-        iterator = tqdm.tqdm(enumerate(iter(training_loader)),
-                            total=min(len(training_loader), c.n_its_per_epoch),
-                            leave=False,
-                            mininterval=1.,
-                            disable=(not c.progress_bar),
-                            ncols=83)
-
-        for i_batch , x in iterator:
+        for i_batch , x in zip(range(len(training_loader)), training_loader):
             if (i_batch + 1) % 10 == 0:
                 print("\tBATCH:", i_batch + 1)
                 print("\tLOSS:", np.mean(np.array(loss_history), axis=0))
@@ -113,15 +99,11 @@ def run_cinn_training():
             model.optim_step()
             loss_history.append([l.item(), 0.])
 
-            if i_batch+1 >= c.n_its_per_epoch:
-                iterator.close()
+            if i_batch+1 >= config.cinn_training.n_its_per_epoch:
                 break
 
         epoch_losses = np.mean(np.array(loss_history), axis=0)
         print("\tLOSS: ", epoch_losses)
-        epoch_losses[1] = np.log10(model.optim.param_groups[0]['lr'])
-        for i in range(len(epoch_losses)):
-            epoch_losses[i] = min(epoch_losses[i], c.loss_display_cutoff)        
 
         with torch.no_grad():
             print("VALIDATION...")
@@ -131,7 +113,7 @@ def run_cinn_training():
                 x_l, x_ab, cond, ab_pred = model.combined_model.prepare_batch(x)                
 
                 for i in range(1):
-                    z = sample_outputs(c.sampling_temperature, model.output_dimensions, x[0].shape[0])
+                    z = sample_outputs(config.cinn_training.sampling_temperature, model.output_dimensions, x[0].shape[0])
 
                 # i = 0
                 # for z_i in z:
@@ -158,7 +140,7 @@ def run_cinn_training():
                 
             print("MSE metric:", np.mean(np.array(mse)))
 
-        if i_epoch >= c.pretrain_epochs * 2:
+        if i_epoch >= config.cinn_training.pretrain_epochs * 2:
             model.weight_scheduler.step(epoch_losses[0])
             model.feature_scheduler.step(epoch_losses[0])
 
@@ -167,18 +149,18 @@ def run_cinn_training():
     # viz.show_imgs(*ims)
     # viz.show_loss(epoch_losses)
 
-        if i_epoch > 0 and (i_epoch % c.checkpoint_save_interval) == 0:
-            model.save(c.filename + '_checkpoint_%.4i' % (i_epoch * (1-c.checkpoint_save_overwrite)))
+        if i_epoch > 0 and (i_epoch % config.cinn_training.checkpoint_save_interval) == 0:
+            model.save(config.cinn_training.filename + '_checkpoint_%.4i' % (i_epoch * (1-config.cinn_training.checkpoint_save_overwrite)))
 
-    os.makedirs(os.path.dirname(c.filename), exist_ok=True)
-    model.save(c.filename)
+    os.makedirs(os.path.dirname(config.cinn_training.filename), exist_ok=True)
+    model.save(config.cinn_training.filename)
 
 
     print("VALIDATION:")
     print("\tValidation batch:")
     validation_batch = validation_set[0]
     visualization.show_data(*validation_batch)
-    validation_z = sample_outputs(c.sampling_temperature, model.output_dimensions, 1)
+    validation_z = sample_outputs(config.cinn_training.sampling_temperature, model.output_dimensions, 1)
     x_l, x_ab, cond, ab_pred = model.combined_model.prepare_batch(validation_batch)
 # cond[0] = cond[0][None, :]
     cond[1] = cond[1][None, :]

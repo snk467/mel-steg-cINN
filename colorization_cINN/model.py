@@ -10,8 +10,6 @@ from FrEIA.framework import *
 from FrEIA.modules import *
 from cINN_components.coeff_functs import *
 from colorization_cINN.subnet_coupling import *
-import colorization_cINN.config as c
-
 from config import config
 
 feature_channels = 32
@@ -19,7 +17,7 @@ fc_cond_length = 512
 n_blocks_fc = 8
 outputs = []
 
-conditions = [ConditionNode(feature_channels, c.img_dims[0], c.img_dims[1]),
+conditions = [ConditionNode(feature_channels, config.cinn_training.img_dims[0], config.cinn_training.img_dims[1]),
               ConditionNode(fc_cond_length)]
 
 if torch.cuda.is_available():
@@ -71,7 +69,7 @@ def _add_conditioned_section(nodes, depth, channels_in, channels, cond_level):
     for k in range(depth):
         nodes.append(Node([nodes[-1].out0],
                             subnet_coupling_layer,
-                            {'clamp':c.clamping, 'F_class':F_conv,
+                            {'clamp':config.cinn_training.clamping, 'F_class':F_conv,
                             'subnet':cond_subnet(cond_level, channels//2), 'sub_len':channels,
                             'F_args':{'leaky_slope': 5e-2, 'channels_hidden':channels}},
                             conditions=[conditions[0]], name=F'conv_{k}'))
@@ -88,7 +86,7 @@ def _add_split_downsample(nodes, split, downsample, channels_in, channels):
         nodes.append(Node([nodes[-1].out0], Fixed1x1Conv, {'M':random_orthog(channels_in*4)}))
         subnet_kwargs = {'kernel_size':1, 'leaky_slope': 1e-2, 'channels_hidden':channels}
         nodes.append(Node([nodes[-1].out0],GLOWCouplingBlock,
-                {'clamp':c.clamping, 'subnet_constructor':functools.partial(F_conv, **subnet_kwargs)}))
+                {'clamp':config.cinn_training.clamping, 'subnet_constructor':functools.partial(F_conv, **subnet_kwargs)}))
 
     if split:
         nodes.append(Node([nodes[-1].out0], Split,
@@ -104,12 +102,12 @@ def _add_fc_section(nodes):
         nodes.append(Node([nodes[-1].out0], PermuteRandom, {'seed':k}, name=F'permute_{k}'))
         subnet_kwargs = {'internal_size': None}
         nodes.append(Node([nodes[-1].out0], GLOWCouplingBlock,
-                {'clamp':c.clamping, 'subnet_constructor':functools.partial(F_fully_connected, **subnet_kwargs)},
+                {'clamp':config.cinn_training.clamping, 'subnet_constructor':functools.partial(F_fully_connected, **subnet_kwargs)},
                 conditions=[conditions[1]], name=F'fc_{k}'))
 
     nodes.append(OutputNode([nodes[-1].out0], name='out'))
 
-nodes = [InputNode(2, *c.img_dims, name='inp')]
+nodes = [InputNode(2, *config.cinn_training.img_dims, name='inp')]
 # 2x64x64 px
 _add_conditioned_section(nodes, depth=4, channels_in=2, channels=32, cond_level=0)
 _add_split_downsample(nodes, split=False, downsample='reshape', channels_in=2, channels=64)
@@ -133,7 +131,7 @@ def init_model(mod):
     for key, param in mod.named_parameters():
         split = key.split('.')
         if param.requires_grad:
-            param.data = c.init_scale * torch.randn(param.data.shape).to(device)
+            param.data = config.cinn_training.init_scale * torch.randn(param.data.shape).to(device)
             if len(split) > 3 and split[3][-1] == '3': # last convolution in the coeff func
                 param.data.fill_(0.)
 
@@ -147,9 +145,6 @@ for o in nodes:
 cinn.to(device)
 init_model(cinn)
 #init_model(fc_cond_net)
-
-if c.load_inn_only:
-    cinn.load_state_dict(torch.load(c.load_inn_only)['net'])
 
 # Load feature net
 from Models.UNET.unet_models import UNet_256
@@ -190,10 +185,10 @@ class WrappedModel(nn.Module):
         # print(x_l.shape)
         # print(x_ab.shape)
 
-        x_ab = F.interpolate(x_ab, size=c.img_dims)
+        x_ab = F.interpolate(x_ab, size=config.cinn_training.img_dims)
         # x_ab += 5e-2 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
-        if c.end_to_end:
+        if config.cinn_training.end_to_end:
             features = self.feature_network.features(x_l)
             # features = features[:, :, 1:-1, 1:-1]
         else:
@@ -262,7 +257,7 @@ class WrappedModel(nn.Module):
         # print(x_ab.shape)
 
         # Na razie tego nie używamy
-        x_ab = F.interpolate(x_ab, size=c.img_dims)
+        x_ab = F.interpolate(x_ab, size=config.cinn_training.img_dims)
         # x_ab += 5e-2 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
         features = net_feat.features(x_l)
@@ -286,7 +281,7 @@ combined_model.to(device)
 params_trainable = (list(filter(lambda p: p.requires_grad, combined_model.inn.parameters()))
                   + list(combined_model.fc_cond_network.parameters()))
 
-optim = torch.optim.Adam(params_trainable, lr=c.lr)
+optim = torch.optim.Adam(params_trainable, lr=config.cinn_training.lr)
 
 sched_factor = 0.2
 sched_patience = 8
@@ -317,8 +312,8 @@ class DummyOptim:
 
 feature_net.train()
 
-if c.end_to_end:
-    feature_optim = torch.optim.Adam(combined_model.module.feature_network.parameters(), lr=c.lr_feature_net, betas=c.betas, eps=1e-4)
+if config.cinn_training.end_to_end:
+    feature_optim = torch.optim.Adam(combined_model.module.feature_network.parameters(), lr=config.cinn_training.lr_feature_net, betas=config.cinn_training.betas, eps=1e-4)
     feature_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(feature_optim,
                                                             factor=sched_factor,
                                                             patience=sched_patience,

@@ -53,23 +53,47 @@ class Config(Structure):
             global_max = 1.4316513538360596
 
     class unet_training(Structure):  
-        dataset_size = 10 #If null then whole dataset is taken
+        dataset_size = 10                   # If null then whole dataset is taken
         batch_size = 10
         epochs = 5
         lr = 0.001
         loss_function = "MSELoss"
         model = "unet_256"
 
-    class cinn_training(Structure):
-        feature_net_path = "/home/snikiel/Documents/REPOS/mel-steg-cINN/models/model_unet_256_None_melspectrograms_parula_norm_lab_13100_80x80_21102022181501.pt"
-        batch_size = 10
-        dataset_size = 100
+    class cinn_training(Structure):   
+        # Architecture: 
+        img_dims = (80, 80)                 # Image size of L, and ab channels respectively
+        clamping = 1.5                      # Clamping parameter in the coupling blocks (higher = less stable but more expressive)
+
+        # Training hyperparameters: 
+        seed = 9287
+        lr = 5e-6
+        n_epochs = 5 #120 * 4
+        n_its_per_epoch = 32 * 8            # In case the epochs should be cut short after n iterations
+        weight_decay = 1e-5
+        betas = (0.9, 0.999)                # concerning adam optimizer
+        init_scale = 0.030                  # initialization std. dev. of weights (0.03 is approx xavier)
+        pre_low_lr = 0                      # for the first n epochs, lower the lr by a factor of 20
+        batch_size = 2
+        dataset_size = 20
+        end_to_end = False
+        sampling_temperature = 1.0
+        pretrain_epochs = 0
+
+        # Files and checkpoints management:
+        feature_net_path = "/path/to/feature/net/model.pt"
+        filename = 'output/full_model.pt'   # output filename
+        load_file = False
+        checkpoint_save_interval = 60
+        checkpoint_save_overwrite = False   # Whether to overwrite the old checkpoint with the new one
+        checkpoint_on_error = True          # Wheter to make a checkpoint with suffix _ABORT if an error occurs
+        
 
     class common(Structure):
         present_data = False
         save_model = False
         batch_checkpoint = 1
-        dataset_location = "/home/snikiel/Documents/STUDIA/EiTI/Praca_magisterska/Testy/Output/melspectrograms_parula_norm_lab_10.hdf5"
+        dataset_location = "/path/to/melspectrograms/dataset.hdf5"
         noise_mean = [0.0]
         noise_variance = [0.001, 0.001, 0.0]
         sweep_count = 2  
