@@ -1,5 +1,4 @@
 from structured_config import ConfigFile, Structure
-from munch import Munch
 import os
 
 # This is just a config structure, the values are just placeholders.
@@ -97,6 +96,7 @@ class Config(Structure):
         noise_mean = [0.0]
         noise_variance = [0.001, 0.001, 0.0]
         sweep_count = 2  
+        wandb_key = "wandb_key"
 
     sweep_config = {
 

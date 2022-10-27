@@ -207,15 +207,10 @@ def prepare_globals():
     logger = logger_module.get_logger(__name__)
 
     # Initialize Weights & Biases
-    wandb.login(key='***REMOVED***')
-    
-    is_cuda = utilities.test_CUDA()
+    wandb.login(key=config.common.wandb_key)
     
     global device
-    if is_cuda:
-        device = torch.device('cuda')
-    else:
-        device = torch.device('cpu')   
+    device = utilities.get_device() 
     
     # Set metrics functions   
     metrics_functions = {

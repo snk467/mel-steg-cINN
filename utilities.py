@@ -147,6 +147,16 @@ def test_CUDA():
         logger.warning("PyTorch is not running on CUDA!")
         return False
 
+def get_device():
+    is_cuda = test_CUDA()
+    
+    if is_cuda:
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')   
+
+    return device
+
 
 
 
