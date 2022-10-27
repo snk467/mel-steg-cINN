@@ -5,6 +5,7 @@ import math
 import LUT
 import torch
 import torch.nn.functional as F
+from IPython.display import display 
 
 def expand2size(pil_img, size):
     width, height = pil_img.size
@@ -54,7 +55,7 @@ def show_data(input_in, target_in, label, clear_input_in):
     border_width = 10
     border = Image.fromarray(np.zeros((max_size, border_width))).convert('RGB')
     
-    Image.fromarray(np.hstack((np.array(L_img),
+    display(Image.fromarray(np.hstack((np.array(L_img),
                                np.array(border),
                                np.array(L_clear_img),
                                np.array(border),
@@ -62,7 +63,7 @@ def show_data(input_in, target_in, label, clear_input_in):
                                np.array(border),
                                np.array(b_img),
                                np.array(border),
-                               np.array(rgb_img)))).show()
+                               np.array(rgb_img)))))
 
 def __get_rgb_image_from_lab_channels(L_channel: torch.Tensor, ab_channels: torch.Tensor):
     colormap_lab = LUT.Colormap.from_colormap("parula_norm_lab")  
