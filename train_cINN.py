@@ -192,6 +192,7 @@ def train():
 
 def run():
     prepare_training()
+    print(config.cinn_training)
     train()
 
 if __name__ == "__main__":
