@@ -4,3 +4,4 @@ munch
 wandb
 h5py
 FrEIA
+structured-config
