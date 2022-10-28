@@ -9,7 +9,7 @@ jobs:
       url: https://github.com/snk467/mel-steg-cINN.git
       username: snk467
       password: secret:github_token
-      path: /notebooks/tests
+      path: /outputs/tests
     outputs:
       repo:
         type: volume
