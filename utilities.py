@@ -135,20 +135,22 @@ def load_audio(file_path):
     audio, sample_rate = librosa.load(file_path, sr=None)
     return audio, sample_rate
 
-def test_CUDA():
+def test_CUDA(verbose=True):
     if torch.cuda.is_available():
-        logger.info("PyTorch is running on CUDA!")
-        logger.info(f"Number of CUDA devices: {torch.cuda.device_count()}")
-        device_id = torch.cuda.current_device()
-        logger.info(f"Device ID: {device_id}")
-        logger.info(f"Device name: {torch.cuda.get_device_name(device_id)}")
+        if verbose:
+            logger.info("PyTorch is running on CUDA!")
+            logger.info(f"Number of CUDA devices: {torch.cuda.device_count()}")
+            device_id = torch.cuda.current_device()
+            logger.info(f"Device ID: {device_id}")
+            logger.info(f"Device name: {torch.cuda.get_device_name(device_id)}")
         return True
     else:
-        logger.warning("PyTorch is not running on CUDA!")
+        if verbose:
+            logger.warning("PyTorch is not running on CUDA!")   
         return False
 
-def get_device():
-    is_cuda = test_CUDA()
+def get_device(verbose=True):
+    is_cuda = test_CUDA(verbose)
     
     if is_cuda:
         device = torch.device('cuda')

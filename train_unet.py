@@ -254,8 +254,8 @@ def run(sweep=False):
     prepare_globals()
     
     if sweep:       
-        print(config.sweep_config) 
-        sweep_id = wandb.sweep(config.sweep_config, project="mel-steg-cINN", entity="snikiel")
+        logger.info(config.unet_sweep_config) 
+        sweep_id = wandb.sweep(config.unet_sweep_config, project="mel-steg-cINN", entity="snikiel")
         wandb.agent(sweep_id, function=train, count=config.common.sweep_count)
     else:
         train(config.unet_training)

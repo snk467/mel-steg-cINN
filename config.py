@@ -60,12 +60,9 @@ class Config(Structure):
         model = "unet_256"
 
     class cinn_training(Structure):   
-        # Architecture: 
-        img_dims = (80, 80)                 # Image size of L, and ab channels respectively
         clamping = 1.5                      # Clamping parameter in the coupling blocks (higher = less stable but more expressive)
 
         # Training hyperparameters: 
-        seed = 9287
         lr = 5e-6
         n_epochs = 5 #120 * 4
         n_its_per_epoch = 32 * 8            # In case the epochs should be cut short after n iterations
@@ -74,19 +71,22 @@ class Config(Structure):
         init_scale = 0.030                  # initialization std. dev. of weights (0.03 is approx xavier)
         pre_low_lr = 0                      # for the first n epochs, lower the lr by a factor of 20
         batch_size = 2
-        dataset_size = 20
-        end_to_end = False
-        sampling_temperature = 1.0
+        dataset_size = 20        
         pretrain_epochs = 0
+        sampling_temperature = 1.0        
 
+    class cinn_management(Structure):
+        # Architecture: 
+        img_dims = (80, 80)                 # Image size of L, and ab channels respectively
+        
         # Files and checkpoints management:
+        end_to_end = False
         feature_net_path = "/path/to/feature/net/model.pt"
         filename = 'output/full_model.pt'   # output filename
         load_file = False
         checkpoint_save_interval = 60
         checkpoint_save_overwrite = False   # Whether to overwrite the old checkpoint with the new one
         checkpoint_on_error = True          # Wheter to make a checkpoint with suffix _ABORT if an error occurs
-        
 
     class common(Structure):
         present_data = False
@@ -98,7 +98,74 @@ class Config(Structure):
         sweep_count = 2  
         wandb_key = "wandb_key"
 
-    sweep_config = {
+    cinn_sweep_config = {
+        'method': 'bayes',
+
+        'metric':
+        {
+            'goal': 'minimize',
+            'name': 'VALID_AVG_MSE'
+        },
+
+        'parameters': {
+
+            'dataset_size': {
+                'value': 100
+            },
+
+            'batch_size': {
+                'value': 10
+            },
+
+            'n_epochs':{
+                'value': 50
+            },
+
+            'n_its_per_epoch':{
+                'value': 32 * 8 
+            },
+
+            'weight_decay':{
+                'value': 1e-5 
+            },
+
+            'betas':{
+                'value': (0.9, 0.999)
+            },
+
+            'init_scale':{
+                'value': 0.030
+            },
+
+            'pre_low_lr':{
+                'value': 0
+            },
+
+            'pretrain_epochs':{
+                'value': 0
+            },
+
+            'sampling_temperature':{
+                'value': 1.0
+            },
+
+            'lr':{ 
+                # 'values': [0.000075, 0.00005, 0.000025, 0.00001]
+                'distribution': 'inv_log_uniform_values',
+                'max': 1e-2,
+                'min': 1e-6
+            },  
+
+            'clamping':{ 
+                # 'values': [0.000075, 0.00005, 0.000025, 0.00001]
+                'distribution': 'uniform',
+                'max': 1.0,
+                'min': 0.0
+            }  
+        }
+    }
+
+    unet_sweep_config = {
 
         'method': 'grid',
 
@@ -149,6 +216,6 @@ LOCAL_CONFIG_FILE = "config.yml"
 config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), LOCAL_CONFIG_FILE)
 
 if os.path.exists(config_path) or __name__ == "__main__":
-    config = Config(config_path)
+    config = Config(config_path, )
 else:
     config = Config()

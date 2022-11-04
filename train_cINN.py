@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import argparse
 from math import ceil
 import random
 import sys
@@ -13,7 +14,7 @@ import tqdm
 import torchmetrics as torch_metrics
 from noise import GaussianNoise
 import torch.nn.functional as F
-from config import config
+from config import config as main_config
 import colorization_cINN.model as model
 from datasets import SpectrogramsDataset
 import visualization
@@ -25,16 +26,16 @@ from metrics import Metrics
 def prepare_training():
     global device
     device = utilities.get_device()  
-
-    if config.cinn_training.load_file:
-        model.load(config.cinn_training.load_file)
+    
+    # if config.cinn_management.load_file:
+    #     model.load(config.cinn_training.load_file)
 
     # Get logger
     global logger
     logger = logger_module.get_logger(__name__)
 
     # Initialize Weights & Biases
-    wandb.login(key=config.common.wandb_key)
+    wandb.login(key=main_config.common.wandb_key)
     
     # Set metrics functions   
     metrics_functions = {
@@ -47,7 +48,7 @@ def prepare_training():
     metrics = Metrics(metrics_functions)  
 
     global tot_output_size
-    tot_output_size = 2 * config.cinn_training.img_dims[0] * config.cinn_training.img_dims[1]
+    tot_output_size = 2 * main_config.cinn_management.img_dims[0] * main_config.cinn_management.img_dims[1]
 
 def loss(zz, jac):
     neg_log_likeli = 0.5 * zz - jac
@@ -61,31 +62,31 @@ def sample_outputs(sigma, out_shape, batch_size):
 def tuple_of_tensors_to_tensor(tuple_of_tensors):
     return  torch.stack(list(tuple_of_tensors), dim=0)
 
-def predict_example(dataset, desc=None):
+def predict_example(cinn_model, cinn_output_dimensions,dataset, config, desc=None):
     example_id = random.randint(0, len(dataset) - 1)
     batch = dataset[example_id]
     print(desc)
     print("Target:")
     visualization.show_data(*batch)
-    sample_z = sample_outputs(config.cinn_training.sampling_temperature, model.output_dimensions, 1)
-    x_l, x_ab, cond, ab_pred = model.combined_model.prepare_batch(batch)
+    sample_z = sample_outputs(config.sampling_temperature, cinn_output_dimensions, 1)
+    x_l, x_ab, cond, ab_pred = cinn_model.prepare_batch(batch)
     cond[1] = cond[1][None, :]
-    x_ab_sampled, b = model.combined_model.reverse_sample(sample_z, cond)   
+    x_ab_sampled, b = cinn_model.reverse_sample(sample_z, cond)   
     print("Result:")
     visualization.show_data(x_l[0], x_ab_sampled[0], batch[2], batch[3])
 
-def validate(validation_loader):
+def validate(cinn_model, cinn_output_dimensions, config, validation_loader):
 
-    model.combined_model.eval()
+    cinn_model.eval()
 
     avg_metrics = None
 
     for i, vdata in enumerate(validation_loader):
-        x_l, x_ab_target, cond, ab_pred = model.combined_model.prepare_batch(vdata)                
+        x_l, x_ab_target, cond, ab_pred = cinn_model.prepare_batch(vdata)           
 
-        z = sample_outputs(config.cinn_training.sampling_temperature, model.output_dimensions, vdata[0].shape[0])
+        z = sample_outputs(config.sampling_temperature, cinn_output_dimensions, vdata[0].shape[0])
 
-        x_ab_output = model.combined_model.reverse_sample(z, cond)
+        x_ab_output = cinn_model.reverse_sample(z, cond)
 
         _, batch_metrics = metrics.gather_batch_metrics(x_ab_output[0], x_ab_target)
 
@@ -95,24 +96,24 @@ def validate(validation_loader):
 
     return avg_metrics
 
-def train_one_epoch(training_loader, i_epoch, step):
+def train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_training_utilities: model.cINNTrainingUtilities):
 
-    model.combined_model.train()
+    cinn_model.train()
 
     # Ustawainie lr odpowiednio do epoki
     if i_epoch < 0:
-        for param_group in model.optim.param_groups:
-            param_group['lr'] = config.cinn_training.lr * 2e-2
+        for param_group in cinn_training_utilities.optimizer.param_groups:
+            param_group['lr'] = config.lr * 2e-2
 
     if i_epoch == 0:
-        for param_group in model.optim.param_groups:
-            param_group['lr'] = config.cinn_training.lr
+        for param_group in cinn_training_utilities.optimizer.param_groups:
+            param_group['lr'] = config.lr
 
-    if config.cinn_training.end_to_end and i_epoch <= config.cinn_training.pretrain_epochs:
-        for param_group in model.feature_optim.param_groups:
+    if main_config.cinn_management.end_to_end and i_epoch <= config.pretrain_epochs:
+        for param_group in cinn_training_utilities.feature_optimizer.param_groups:
             param_group['lr'] = 0
-        if i_epoch == config.cinn_training.pretrain_epochs:
-            for param_group in model.feature_optim.param_groups:
+        if i_epoch == config.pretrain_epochs:
+            for param_group in cinn_training_utilities.feature_optimizer.param_groups:
                 param_group['lr'] = 1e-4
 
     avg_loss = []
@@ -123,12 +124,12 @@ def train_one_epoch(training_loader, i_epoch, step):
         L, ab, _, _ = x  
         input = torch.cat((L, ab), dim=1).to(device)
 
-        zz, jac = model.combined_model(input)
+        zz, jac = cinn_model(input)
 
         train_loss = loss(zz, jac)
         train_loss.backward()
 
-        model.optim_step()
+        cinn_training_utilities.optimizer_step()
 
         # Report
         if i_batch % batch_checkpoint == (batch_checkpoint - 1):
@@ -137,65 +138,87 @@ def train_one_epoch(training_loader, i_epoch, step):
 
         avg_loss.append(train_loss.item())
 
-        if i_batch+1 >= config.cinn_training.n_its_per_epoch:
+        if i_batch+1 >= config.n_its_per_epoch:
             break
 
     return np.mean(avg_loss), step
 
 
-def train():
-    with wandb.init(project="cINN", entity="snikiel", config=config.cinn_training):
-        training_set = SpectrogramsDataset(config.common.dataset_location,
+def train(config=None):
+    with wandb.init(project="cINN", entity="snikiel", config=config):
+        config = wandb.config
+        logger.info(config)
+        training_set = SpectrogramsDataset(main_config.common.dataset_location,
                                         train=True,
-                                        size=config.cinn_training.dataset_size,
+                                        size=config.dataset_size,
                                         augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
 
-        validation_set = SpectrogramsDataset(config.common.dataset_location,
+        validation_set = SpectrogramsDataset(main_config.common.dataset_location,
                                         train=False,
-                                        size=config.cinn_training.dataset_size,
+                                        size=config.dataset_size,
                                         augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
 
         # Create data loaders for our datasets; shuffle for training, not for validation
-        training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.cinn_training.batch_size, shuffle=True, num_workers=2)
-        validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.cinn_training.batch_size, shuffle=False, num_workers=2)
+        training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
+        validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
+
+        cinn_builder = model.cINN_builder(config)
+        
+        feature_net = cinn_builder.get_feature_net()
+        fc_cond_net = cinn_builder.get_fc_cond_net()
+        cinn, cinn_output_dimensions = cinn_builder.get_cinn()
+                
+        cinn_model = model.WrappedModel(feature_net, fc_cond_net, cinn)
+        cinn_model.to(device)
+        cinn_training_utilities = model.cINNTrainingUtilities(cinn_model, config)
 
         step = 0
 
-        for i_epoch in range(-config.cinn_training.pre_low_lr, config.cinn_training.n_epochs):
+        for i_epoch in range(-config.pre_low_lr, config.n_epochs):
 
             logger.info('EPOCH {}:'.format(i_epoch + 1))
             logger.info("       Model training.")
-            avg_loss, step = train_one_epoch(training_loader, i_epoch, step)
-            metrics.log_metrics({'avg_train_loss': avg_loss}, "TRAIN AVG", step)
+            avg_loss, step = train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_training_utilities)
+            metrics.log_metrics({'loss': avg_loss}, "TRAIN AVG", step)
 
             logger.info("       Model validation.")
-            avg_metrics = validate(validation_loader)
+            avg_metrics = validate(cinn_model, cinn_output_dimensions, config, validation_loader)
             # Report
             metrics.log_metrics(avg_metrics, "VALID AVG", step)
 
-            if i_epoch >= config.cinn_training.pretrain_epochs * 2:
-                model.weight_scheduler.step(avg_loss)
-                model.feature_scheduler.step(avg_loss)
+            if i_epoch >= config.pretrain_epochs * 2:
+                cinn_training_utilities.scheduler_step(avg_loss)
 
-            # if i_epoch > 0 and (i_epoch % config.cinn_training.checkpoint_save_interval) == 0:
-            #     model.save(config.cinn_training.filename + '_checkpoint_%.4i' % (i_epoch * (1-config.cinn_training.checkpoint_save_overwrite)))
+            # if i_epoch > 0 and (i_epoch % config.checkpoint_save_interval) == 0:
+            #     model.save(config.filename + '_checkpoint_%.4i' % (i_epoch * (1-config.checkpoint_save_overwrite)))
 
-        if config.common.present_data:
-            predict_example(training_set, desc="Training set example")
+        if main_config.common.present_data:
+            predict_example(cinn_model, cinn_output_dimensions, training_set, config, desc="Training set example")
             print()
-            predict_example(validation_set, desc="Validation set example")
+            predict_example(cinn_model, cinn_output_dimensions, validation_set, config, desc="Validation set example")
 
         wandb.finish()
 
-    # os.makedirs(os.path.dirname(config.cinn_training.filename), exist_ok=True)
-    # model.save(config.cinn_training.filename)
+    # os.makedirs(os.path.dirname(config.filename), exist_ok=True)
+    # model.save(config.filename)
 
-def run():
+
+def run(sweep=False):
     prepare_training()
-    print(config.cinn_training)
-    train()
+    
+    if sweep:               
+        logger.info(main_config.cinn_sweep_config) 
+        sweep_id = wandb.sweep(main_config.cinn_sweep_config, project="cINN", entity="snikiel")
+        wandb.agent(sweep_id, function=train, count=main_config.common.sweep_count)
+    else:        
+        train(main_config.cinn_training)
+
 
 if __name__ == "__main__":
-    run()
 
+    parser = argparse.ArgumentParser(description='Train cINN for mel-spectrogram colorization.')
+    parser.add_argument('--sweep', action='store_true', help='run Weights & Biases sweep')
 
+    args = parser.parse_args()
+
+    run(args.sweep)
