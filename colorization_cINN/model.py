@@ -254,7 +254,7 @@ class WrappedModel(nn.Module):
     
         x_l, x_ab, _, _ = x
         x_l = x_l.to(utilities.get_device(verbose=False))
-        x_ab = x_ab
+        x_ab = x_ab.to(utilities.get_device(verbose=False))
 
         # print("BEFORE")
         # print(x_l.shape)
@@ -286,7 +286,7 @@ class WrappedModel(nn.Module):
 
         self.train()
 
-        return x_l.detach(), x_ab, cond, ab_pred
+        return x_l.detach(), x_ab.detach(), cond, ab_pred
     
     
 class cINNTrainingUtilities:
