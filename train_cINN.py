@@ -63,13 +63,13 @@ def tuple_of_tensors_to_tensor(tuple_of_tensors):
 def predict_example(cinn_model, cinn_output_dimensions,dataset, config, desc=None):
     example_id = random.randint(0, len(dataset) - 1)
     batch = dataset[example_id]
-    print(desc)
-    print("Target:")
-    visualization.show_data(*batch)
     sample_z = sample_outputs(config.sampling_temperature, cinn_output_dimensions, 1)
     x_l, x_ab, cond, ab_pred = cinn_model.prepare_batch(batch)
     cond[1] = cond[1][None, :]
     x_ab_sampled, b = cinn_model.reverse_sample(sample_z, cond)   
+    print(desc)
+    print("Target:")
+    visualization.show_data(batch[0], F.interpolate(batch[1][None, :], x_ab_sampled[0][0].shape)[0], batch[2], batch[3])
     print("Result:")
     visualization.show_data(x_l[0], x_ab_sampled[0], batch[2], batch[3])
 

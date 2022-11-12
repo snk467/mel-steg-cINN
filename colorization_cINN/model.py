@@ -15,11 +15,12 @@ from cINN_components.coeff_functs import *
 from colorization_cINN.subnet_coupling import *
 from config import config as main_config
 import utilities
+import logger as logger_module
 
 
 # region Globals
 
-feature_channels = 32
+feature_channels = 256
 fc_cond_length = 512
 n_blocks_fc = 8
 outputs = []
@@ -29,7 +30,7 @@ sched_patience = 8
 sched_trehsh = 0.001
 sched_cooldown = 2
 
-
+logger = logger_module.get_logger(__name__)
 
 # endregion
 
@@ -173,7 +174,7 @@ class cINN_builder:
         return cinn, output_dimensions
     
     def get_feature_net(self):
-        from Models.UNET.unet_models import UNet_256
+        from Models.UNET.unet_models import UNet_256_2
         feature_net = torch.load(main_config.cinn_management.feature_net_path, map_location=utilities.get_device(verbose=False))
         feature_net.eval()
         return feature_net      
@@ -197,20 +198,25 @@ class WrappedModel(nn.Module):
 
         x_l = x[:, 0:1, :, :]
         x_ab = x[:, 1:, :, :]
-
-        # print(x_l.shape)
-        # print(x_ab.shape)
+        
+        logger.debug(f"x_L input shape:{x_l.shape}")
+        logger.debug(f"x_ab input shape:{x_ab.shape}")
 
         x_ab = F.interpolate(x_ab, size=main_config.cinn_management.img_dims)
+
+        logger.debug(f"x_ab shape after interpolate:{x_ab.shape}")
+        
         # x_ab += 5e-2 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
         if main_config.cinn_management.end_to_end:
-            features = self.feature_network.features(x_l)
+            features = self.feature_network.features(x_l)[-1]
             # features = features[:, :, 1:-1, 1:-1]
         else:
             with torch.no_grad():
-                features = self.feature_network.features(x_l)
+                features = self.feature_network.features(x_l)[-1]
                 # features = features[:, :, 1:-1, 1:-1]
+        
+        logger.debug(f"features shape:{features.shape}")
 
         cond = [features, self.fc_cond_network(features).squeeze()]
 
@@ -279,10 +285,10 @@ class WrappedModel(nn.Module):
 
         
         # print(features.shape)
-        ab_pred = net_feat.forward_from_features(features)
+        ab_pred = net_feat.forward_from_features(*features)
 
         # print(net_cond.training)
-        cond = [features, net_cond(features).squeeze()]
+        cond = [features[-1], net_cond(features[-1]).squeeze()]
 
         self.train()
 
