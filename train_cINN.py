@@ -22,6 +22,11 @@ import utilities
 import wandb
 import logger as logger_module
 from metrics import Metrics
+import gc
+
+# Get logger
+global logger
+logger = logger_module.get_logger(__name__)
 
 def prepare_training():
     global device
@@ -29,13 +34,6 @@ def prepare_training():
     
     # if config.cinn_management.load_file:
     #     model.load(config.cinn_training.load_file)
-
-    # Get logger
-    global logger
-    logger = logger_module.get_logger(__name__)
-
-    # Initialize Weights & Biases
-    wandb.login(key=main_config.common.wandb_key)
     
     # Set metrics functions   
     metrics_functions = {
@@ -90,7 +88,7 @@ def validate(cinn_model, cinn_output_dimensions, config, validation_loader):
 
         _, batch_metrics = metrics.gather_batch_metrics(x_ab_output[0], x_ab_target)
 
-        avg_metrics = metrics.add_metrics(avg_metrics, batch_metrics)
+        avg_metrics = metrics.add_metrics(avg_metrics, batch_metrics)                
     
     avg_metrics = metrics.divide_metrics(avg_metrics, len(validation_loader) )
 
@@ -130,7 +128,7 @@ def train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_tra
         train_loss.backward()
 
         cinn_training_utilities.optimizer_step()
-
+        
         # Report
         if i_batch % batch_checkpoint == (batch_checkpoint - 1):
             step +=1
@@ -144,9 +142,10 @@ def train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_tra
     return np.mean(avg_loss), step
 
 
-def train(config=None):
-    with wandb.init(project="cINN", entity="snikiel", config=config):
-        config = wandb.config
+def train(config=None):  
+    with wandb.init(project="cINN", entity="snikiel", config=config): 
+        prepare_training()
+        config = wandb.config        
         logger.info(config)
         training_set = SpectrogramsDataset(main_config.common.dataset_location,
                                         train=True,
@@ -175,7 +174,6 @@ def train(config=None):
         step = 0
 
         for i_epoch in range(-config.pre_low_lr, config.n_epochs):
-
             logger.info('EPOCH {}:'.format(i_epoch + 1))
             logger.info("       Model training.")
             avg_loss, step = train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_training_utilities)
@@ -203,8 +201,9 @@ def train(config=None):
     # model.save(config.filename)
 
 
-def run(sweep=False):
-    prepare_training()
+def run(sweep=False):   
+    # Initialize Weights & Biases
+    wandb.login(key=main_config.common.wandb_key)
     
     if sweep:               
         logger.info(main_config.cinn_sweep_config) 

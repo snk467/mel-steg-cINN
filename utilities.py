@@ -8,6 +8,8 @@ from exceptions import ArgumentError
 from LUT import Colormap
 from skimage import color
 import torch
+from pynvml import *
+from hurry.filesize import size
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +160,42 @@ def get_device(verbose=True):
         device = torch.device('cpu')   
 
     return device
+
+def print_gpu_memory_usage():
+    nvmlInit()
+    h = nvmlDeviceGetHandleByIndex(0)
+    info = nvmlDeviceGetMemoryInfo(h)
+    logger.info("Memory usage:")
+    logger.info(f'total    : {size(info.total)}')
+    logger.info(f'free     : {size(info.free)}')
+    logger.info(f'used     : {size(info.used)}')
+    
+def wipe_memory(cinn_training_utilities, models):
+    logger.info("Freeing memory")
+    utilities.print_gpu_memory_usage()
+    _optimizer_to(cinn_training_utilities.optimizer, torch.device('cpu'))    
+    del cinn_training_utilities.optimizer
+    for model in models:
+        model.to(torch.device('cpu'))
+        del model
+    gc.collect()
+    torch.cuda.empty_cache()
+    logger.info("Result:")
+    utilities.print_gpu_memory_usage()
+
+def _optimizer_to(optimizer, device):
+    for param in optimizer.state.values():
+        # Not sure there are any global tensors in the state dict
+        if isinstance(param, torch.Tensor):
+            param.data = param.data.to(device)
+            if param._grad is not None:
+                param._grad.data = param._grad.data.to(device)
+        elif isinstance(param, dict):
+            for subparam in param.values():
+                if isinstance(subparam, torch.Tensor):
+                    subparam.data = subparam.data.to(device)
+                    if subparam._grad is not None:
+                        subparam._grad.data = subparam._grad.data.to(device)
 
 
 

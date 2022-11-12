@@ -5,3 +5,4 @@ wandb
 h5py
 FrEIA
 structured-config
+hurry.filesize

@@ -241,7 +241,8 @@ def prepare_globals():
     models = {
         "custom_unet": custom_UNet,
         "unet": UNet,
-        "unet_256": UNet_256
+        "unet_256": UNet_256,
+        "unet_256_2": UNet_256_2
     }
 
     if config.common.present_data:

@@ -8,3 +8,4 @@ SoundFile==0.10.3.post1
 torch==1.12.1
 tqdm==4.64.0
 torchmetrics
+hurry.filesize
