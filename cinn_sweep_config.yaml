@@ -1,0 +1,40 @@
+program: train_cINN.py
+project: cINN
+entity: snikiel
+method: random
+metric:
+    goal: minimize
+    name: VALID_AVG_MSE
+parameters:
+    batch_size:
+      value: 8
+    dataset_size:
+      value: 160
+    betas:
+      value:
+      - 0.9
+      - 0.999
+    clamping:
+      distribution: uniform
+      max: 1.0
+      min: 0.0    
+    init_scale:
+      distribution: uniform
+      max: 0.1
+      min: 0.01  
+    lr:
+      distribution: inv_log_uniform_values
+      max: 0.01
+      min: 1.0e-06
+    n_epochs:
+      value: 10
+    n_its_per_epoch:
+      value: 256
+    pre_low_lr:
+      value: 0
+    pretrain_epochs:
+      value: 0
+    sampling_temperature:
+      value: 1.0
+    weight_decay:
+      value: 1.0e-05

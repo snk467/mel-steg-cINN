@@ -115,7 +115,7 @@ def train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_tra
                 param_group['lr'] = 1e-4
 
     avg_loss = []
-    batch_checkpoint = ceil(len(training_loader) / 10)
+    batch_checkpoint = ceil(min(len(training_loader) / 10, config.n_its_per_epoch / 10))
 
     for i_batch , x in enumerate(training_loader):
 
@@ -201,23 +201,29 @@ def train(config=None):
     # model.save(config.filename)
 
 
-def run(sweep=False):   
+def run(config):   
     # Initialize Weights & Biases
     wandb.login(key=main_config.common.wandb_key)
+    train(config)      
     
-    if sweep:               
-        logger.info(main_config.cinn_sweep_config) 
-        sweep_id = wandb.sweep(main_config.cinn_sweep_config, project="cINN", entity="snikiel")
-        wandb.agent(sweep_id, function=train, count=main_config.common.sweep_count)
-    else:        
-        train(main_config.cinn_training)
-
-
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description='Train cINN for mel-spectrogram colorization.')
-    parser.add_argument('--sweep', action='store_true', help='run Weights & Biases sweep')
-
+    parser.add_argument('--batch_size', type=int, required=True)
+    parser.add_argument('--dataset_size', type=int, required=True)
+    parser.add_argument('--betas', type=tuple, required=True)
+    parser.add_argument('--clamping', type=float, required=True)
+    parser.add_argument('--init_scale', type=float, required=True)
+    parser.add_argument('--lr', type=float, required=True)
+    parser.add_argument('--n_epochs', type=int, required=True)
+    parser.add_argument('--n_its_per_epoch', type=int, required=True)
+    parser.add_argument('--pre_low_lr', type=float, required=True)
+    parser.add_argument('--pretrain_epochs', type=int, required=True)
+    parser.add_argument('--sampling_temperature', type=float, required=True)
+    parser.add_argument('--weight_decay', type=float, required=True)
     args = parser.parse_args()
-
-    run(args.sweep)
+    
+    if len(sys.argv) > 0:
+        run(args)
+    else:
+        run(main_config.cinn_training)
+    

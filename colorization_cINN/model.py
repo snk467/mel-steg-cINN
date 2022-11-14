@@ -31,6 +31,7 @@ sched_trehsh = 0.001
 sched_cooldown = 2
 
 logger = logger_module.get_logger(__name__)
+device = utilities.get_device(verbose=False)
 
 # endregion
 
@@ -206,6 +207,9 @@ class WrappedModel(nn.Module):
 
         logger.debug(f"x_ab shape after interpolate:{x_ab.shape}")
         
+        x_ab.to(device)
+        x_l.to(device)
+        
         # x_ab += 5e-2 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
         if main_config.cinn_management.end_to_end:
@@ -259,8 +263,7 @@ class WrappedModel(nn.Module):
         net_cond = self.fc_cond_network
     
         x_l, x_ab, _, _ = x
-        x_l = x_l.to(utilities.get_device(verbose=False))
-        x_ab = x_ab.to(utilities.get_device(verbose=False))
+        x_l = x_l.to(device)
 
         # print("BEFORE")
         # print(x_l.shape)
@@ -278,6 +281,7 @@ class WrappedModel(nn.Module):
 
         # Na razie tego nie używamy
         x_ab = F.interpolate(x_ab, size=main_config.cinn_management.img_dims)
+        x_ab = x_ab.to(device)
         # x_ab += 5e-2 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
         features = net_feat.features(x_l)
@@ -292,7 +296,7 @@ class WrappedModel(nn.Module):
 
         self.train()
 
-        return x_l.detach(), x_ab.detach(), cond, ab_pred
+        return x_l.detach().to('cpu'), x_ab.detach(), cond, ab_pred.detach().to('cpu')
     
     
 class cINNTrainingUtilities:
