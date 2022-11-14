@@ -28,6 +28,8 @@ import gc
 global logger
 logger = logger_module.get_logger(__name__)
 
+MODEL_FILE_NAME = "cinn_model.pt"
+
 def prepare_training():
     global device
     device = utilities.get_device()  
@@ -142,8 +144,9 @@ def train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_tra
     return np.mean(avg_loss), step
 
 
-def train(config=None):  
+def train(config=None, load=None):  
     with wandb.init(project="cINN", entity="snikiel", config=config): 
+        wandb.log({"main_setup": main_config.to_dict()})
         prepare_training()
         config = wandb.config        
         logger.info(config)
@@ -161,16 +164,22 @@ def train(config=None):
         training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
         validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
 
+
         cinn_builder = model.cINN_builder(config)
-        
+    
         feature_net = cinn_builder.get_feature_net()
         fc_cond_net = cinn_builder.get_fc_cond_net()
         cinn, cinn_output_dimensions = cinn_builder.get_cinn()
                 
         cinn_model = model.WrappedModel(feature_net, fc_cond_net, cinn)
-        cinn_model.to(device)
         cinn_training_utilities = model.cINNTrainingUtilities(cinn_model, config)
-
+        
+        if load is not None:
+            restored_model = wandb.restore(MODEL_FILE_NAME, run_path=load)# "lavanyashukla/save_and_restore/10pr4joa"
+            cinn_training_utilities.load(restored_model.name)
+            cinn_model = cinn_training_utilities.model
+        
+        cinn_model.to(device)
         step = 0
 
         for i_epoch in range(-config.pre_low_lr, config.n_epochs):
@@ -194,6 +203,10 @@ def train(config=None):
             predict_example(cinn_model, cinn_output_dimensions, training_set, config, desc="Training set example")
             print()
             predict_example(cinn_model, cinn_output_dimensions, validation_set, config, desc="Validation set example")
+            
+        # Save model
+        if main_config.common.save_model:   
+            cinn_training_utilities.save(os.path.join(wandb.run.dir, MODEL_FILE_NAME))
 
         wandb.finish()
 
@@ -201,29 +214,33 @@ def train(config=None):
     # model.save(config.filename)
 
 
-def run(config):   
+def run(config, load=None):   
     # Initialize Weights & Biases
     wandb.login(key=main_config.common.wandb_key)
-    train(config)      
+    train(config, load)      
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train cINN for mel-spectrogram colorization.')
-    parser.add_argument('--batch_size', type=int, required=True)
-    parser.add_argument('--dataset_size', type=int, required=True)
-    parser.add_argument('--betas', type=tuple, required=True)
-    parser.add_argument('--clamping', type=float, required=True)
-    parser.add_argument('--init_scale', type=float, required=True)
-    parser.add_argument('--lr', type=float, required=True)
-    parser.add_argument('--n_epochs', type=int, required=True)
-    parser.add_argument('--n_its_per_epoch', type=int, required=True)
-    parser.add_argument('--pre_low_lr', type=float, required=True)
-    parser.add_argument('--pretrain_epochs', type=int, required=True)
-    parser.add_argument('--sampling_temperature', type=float, required=True)
-    parser.add_argument('--weight_decay', type=float, required=True)
+    parser.add_argument('--batch_size', type=int, required=False)
+    parser.add_argument('--dataset_size', type=int, required=False)
+    parser.add_argument('--betas', type=tuple, required=False)
+    parser.add_argument('--clamping', type=float, required=False)
+    parser.add_argument('--init_scale', type=float, required=False)
+    parser.add_argument('--lr', type=float, required=False)
+    parser.add_argument('--n_epochs', type=int, required=False)
+    parser.add_argument('--n_its_per_epoch', type=int, required=False)
+    parser.add_argument('--pre_low_lr', type=float, required=False)
+    parser.add_argument('--pretrain_epochs', type=int, required=False)
+    parser.add_argument('--sampling_temperature', type=float, required=False)
+    parser.add_argument('--weight_decay', type=float, required=False)
+    parser.add_argument('--load', type=str, required=False)
     args = parser.parse_args()
     
-    if len(sys.argv) > 0:
-        run(args)
+    sweep_args_dict = {k: args[k] for k in vars(args).keys() - {'load'}}
+    sweep_args_present = all(value is not None for value in sweep_args_dict.values()) 
+    
+    if sweep_args_present:
+        run(args, args.load)
     else:
-        run(main_config.cinn_training)
+        run(main_config.cinn_training, args.load)
     

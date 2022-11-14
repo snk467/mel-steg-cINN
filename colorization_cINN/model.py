@@ -299,36 +299,54 @@ class WrappedModel(nn.Module):
         return x_l.detach().to('cpu'), x_ab.detach(), cond, ab_pred.detach().to('cpu')
     
     
+    
+    
 class cINNTrainingUtilities:
     def __init__(self, model: WrappedModel, config: main_config.cinn_training) -> None:
         self.model = model
         self.config_training = config
-        params_trainable = (list(filter(lambda p: p.requires_grad, model.inn.parameters()))
-                  + list(model.fc_cond_network.parameters()))
         
-        self.optimizer = torch.optim.Adam(params_trainable, lr=self.config_training.lr)
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,
-                                                    factor=sched_factor,
-                                                    patience=sched_patience,
-                                                    threshold=sched_trehsh,
-                                                    min_lr=0, eps=1e-08,
-                                                    cooldown=sched_cooldown,
-                                                    verbose = True)
+        if config is not None:  
+            params_trainable = (list(filter(lambda p: p.requires_grad, model.inn.parameters()))
+                    + list(model.fc_cond_network.parameters()))
+            
+            self.optimizer = torch.optim.Adam(params_trainable, lr=self.config_training.lr)
+            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,
+                                                        factor=sched_factor,
+                                                        patience=sched_patience,
+                                                        threshold=sched_trehsh,
+                                                        min_lr=0, eps=1e-08,
+                                                        cooldown=sched_cooldown,
+                                                        verbose = True)
+            
+            self.feature_optimizer = None
+            self.feature_scheduler = None
+            if main_config.cinn_management.end_to_end:
+                self.feature_optimizer = torch.optim.Adam(self.model.module.feature_network.parameters(),
+                                                        lr=config.cinn_training.lr_feature_net,
+                                                        betas=config.cinn_training.betas,
+                                                        eps=1e-4)
+                self.feature_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.feature_optimizer,
+                                                                        factor=sched_factor,
+                                                                        patience=sched_patience,
+                                                                        threshold=sched_trehsh,
+                                                                        min_lr=0, eps=1e-08,
+                                                                        cooldown=sched_cooldown,
+                                                                        verbose = True)
+            
+    def load(self, path):
+        state_dicts = torch.load(path)
+        network_state_dict = {k:v for k,v in state_dicts['net'].items() if 'tmp_var' not in k}
         
-        self.feature_optimizer = None
-        self.feature_scheduler = None
-        if main_config.cinn_management.end_to_end:
-            self.feature_optimizer = torch.optim.Adam(self.model.module.feature_network.parameters(),
-                                                      lr=config.cinn_training.lr_feature_net,
-                                                      betas=config.cinn_training.betas,
-                                                      eps=1e-4)
-            self.feature_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.feature_optimizer,
-                                                                    factor=sched_factor,
-                                                                    patience=sched_patience,
-                                                                    threshold=sched_trehsh,
-                                                                    min_lr=0, eps=1e-08,
-                                                                    cooldown=sched_cooldown,
-                                                                    verbose = True)
+        self.model.load_state_dict(network_state_dict)
+        try:
+            self.optimizer.load_state_dict(state_dicts['opt'])
+            if state_dicts['opt_f'] is None:
+                self.feature_optimizer = None
+            else:
+                self.feature_optimizer.load_state_dict(state_dicts['opt_f'])
+        except:
+            logger.error('Cannot load optimizer for some reason or other')
         
     def optimizer_step(self):
         self.optimizer.step()
@@ -344,19 +362,11 @@ class cINNTrainingUtilities:
         
         if self.feature_scheduler is not None:
             self.feature_scheduler.step(value)
+            
+    def save(self, path):
+        torch.save({'opt':self.optimizer.state_dict(),
+                    'opt_f': None if self.feature_optimizer is None else self.feature_optimizer.state_dict(),
+                    'net': self.model.state_dict()}, path)
+        
 
-# TODO: Może to trzeba przerobić? - na razie jest OK, nie zapisujemy póki co
-# def save(name):
-#     torch.save({'opt':optim.state_dict(),
-#                 'opt_f':feature_optim.state_dict(),
-#                 'net':combined_model.state_dict()}, name)
 
-# def load(name):
-#     state_dicts = torch.load(name)
-#     network_state_dict = {k:v for k,v in state_dicts['net'].items() if 'tmp_var' not in k}
-#     combined_model.load_state_dict(network_state_dict)
-#     try:
-#         optim.load_state_dict(state_dicts['opt'])
-#         feature_optim.load_state_dict(state_dicts['opt_f'])
-#     except:
-#         print('Cannot load optimizer for some reason or other')
