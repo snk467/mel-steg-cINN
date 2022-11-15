@@ -10,6 +10,7 @@ from skimage import color
 import torch
 from pynvml import *
 from hurry.filesize import size
+import gc
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ class Audio:
 
         return MelSpectrogram.from_value(mel_spectrogram, normalized, range, self.config)
 
-    def get_color_mel_spectrogram(self, normalized=False, colormap=None):
+    def get_color_mel_spectrogram(self, normalized=False, colormap:Colormap=None):
         """
         
         Calculate image-represented mel-spectrogram of audio waveform. 
@@ -69,16 +70,17 @@ class Audio:
         mel_spectrogram_data = mel_spectrogram.mel_spectrogram_data
 
         if colormap is not None:
-            color_map = Colormap.from_colormap(colormap)
-            mel_spectrogram_data = color_map.get_colors_from_values(mel_spectrogram_data)
+            mel_spectrogram_data = colormap.get_colors_from_values(mel_spectrogram_data)
 
         return MelSpectrogram.from_color(mel_spectrogram_data, normalized, colormap, self.config)
 
 class MelSpectrogram:
-    def __init__(self, mel_spectrogram_data, normalized, config, range=None, colormap=None):
+    def __init__(self, mel_spectrogram_data, normalized, config, range=None, colormap:Colormap=None):
         self.mel_spectrogram_data = mel_spectrogram_data
         self.normalized = normalized
         self.range = range 
+        if type(colormap) != Colormap:
+            raise ArgumentError()
         self.colormap = colormap
         self.config = config
         self.audio = None        
@@ -103,8 +105,8 @@ class MelSpectrogram:
 
         # Convert color back to values
         if self.colormap is not None:
-            colormap = Colormap.from_colormap(self.colormap)
-            mel_spectrogram_data = colormap.get_values_from_colors(mel_spectrogram_data)
+            # colormap = Colormap.from_colormap(self.colormap)
+            mel_spectrogram_data = self.colormap.get_values_from_colors(mel_spectrogram_data)
 
         # Inverse scaling
         if self.range is not None:
@@ -172,7 +174,7 @@ def print_gpu_memory_usage():
     
 def wipe_memory(cinn_training_utilities, models):
     logger.info("Freeing memory")
-    utilities.print_gpu_memory_usage()
+    print_gpu_memory_usage()
     _optimizer_to(cinn_training_utilities.optimizer, torch.device('cpu'))    
     del cinn_training_utilities.optimizer
     for model in models:
@@ -181,7 +183,7 @@ def wipe_memory(cinn_training_utilities, models):
     gc.collect()
     torch.cuda.empty_cache()
     logger.info("Result:")
-    utilities.print_gpu_memory_usage()
+    print_gpu_memory_usage()
 
 def _optimizer_to(optimizer, device):
     for param in optimizer.state.values():

@@ -795,7 +795,6 @@ class Colormap:
 
     @classmethod
     def from_colormap(cls, colormap="parula_rgb"):
-
         if type(colormap) != str:
             raise exceptions.ArgumentError
 

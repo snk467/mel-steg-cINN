@@ -335,7 +335,7 @@ class cINNTrainingUtilities:
                                                                         verbose = True)
             
     def load(self, path):
-        state_dicts = torch.load(path)
+        state_dicts = torch.load(path, map_location=utilities.get_device(verbose=False))
         network_state_dict = {k:v for k,v in state_dicts['net'].items() if 'tmp_var' not in k}
         
         self.model.load_state_dict(network_state_dict)

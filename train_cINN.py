@@ -1,28 +1,31 @@
 #!/usr/bin/env python
 import argparse
-from math import ceil
+import gc
+import os
 import random
 import sys
-import os
+from math import ceil
+
+import numpy as np
 import torch
 import torch.nn
-import torch.optim
-from torch.nn.functional import avg_pool2d#, interpolate
-from torch.autograd import Variable
-import numpy as np
-import tqdm
-import torchmetrics as torch_metrics
-from noise import GaussianNoise
 import torch.nn.functional as F
-from config import config as main_config
+import torch.optim
+import torchmetrics as torch_metrics
+import tqdm
+from torch.autograd import Variable
+from torch.nn.functional import avg_pool2d  # , interpolate
+
 import colorization_cINN.model as model
-from datasets import SpectrogramsDataset
-import visualization
-import utilities
-import wandb
 import logger as logger_module
+import utilities
+import visualization
+import wandb
+from config import config as main_config
+from datasets import SpectrogramsDataset
 from metrics import Metrics
-import gc
+from noise import GaussianNoise
+from visualization import predict_cinn_example
 
 # Get logger
 global logger
@@ -61,19 +64,6 @@ def sample_outputs(sigma, out_shape, batch_size):
 
 def tuple_of_tensors_to_tensor(tuple_of_tensors):
     return  torch.stack(list(tuple_of_tensors), dim=0)
-
-def predict_example(cinn_model, cinn_output_dimensions,dataset, config, desc=None):
-    example_id = random.randint(0, len(dataset) - 1)
-    batch = dataset[example_id]
-    sample_z = sample_outputs(config.sampling_temperature, cinn_output_dimensions, 1)
-    x_l, x_ab, cond, ab_pred = cinn_model.prepare_batch(batch)
-    cond[1] = cond[1][None, :]
-    x_ab_sampled, b = cinn_model.reverse_sample(sample_z, cond)   
-    print(desc)
-    print("Target:")
-    visualization.show_data(batch[0], F.interpolate(batch[1][None, :], x_ab_sampled[0][0].shape)[0], batch[2], batch[3])
-    print("Result:")
-    visualization.show_data(x_l[0], x_ab_sampled[0], batch[2], batch[3])
 
 def validate(cinn_model, cinn_output_dimensions, config, validation_loader):
 
@@ -200,9 +190,9 @@ def train(config=None, load=None):
             #     model.save(config.filename + '_checkpoint_%.4i' % (i_epoch * (1-config.checkpoint_save_overwrite)))
 
         if main_config.common.present_data:
-            predict_example(cinn_model, cinn_output_dimensions, training_set, config, desc="Training set example")
+            predict_cinn_example(cinn_model, cinn_output_dimensions, training_set, config, desc="Training set example", restore_audio=True)
             print()
-            predict_example(cinn_model, cinn_output_dimensions, validation_set, config, desc="Validation set example")
+            predict_cinn_example(cinn_model, cinn_output_dimensions, validation_set, config, desc="Validation set example", restore_audio=True)
             
         # Save model
         if main_config.common.save_model:   
