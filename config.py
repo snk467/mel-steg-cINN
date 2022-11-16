@@ -64,6 +64,7 @@ class Config(Structure):
 
         # Training hyperparameters: 
         lr = 5e-6
+        lr_feature_net = 1e-4
         n_epochs = 5 #120 * 4
         n_its_per_epoch = 32 * 8            # In case the epochs should be cut short after n iterations
         weight_decay = 1e-5

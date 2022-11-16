@@ -196,6 +196,7 @@ def train(config=None, load=None):
             
         # Save model
         if main_config.common.save_model:   
+            logger.info("Saving cINN model.")
             cinn_training_utilities.save(os.path.join(wandb.run.dir, MODEL_FILE_NAME))
 
         wandb.finish()
