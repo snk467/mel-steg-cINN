@@ -243,7 +243,7 @@ class WrappedModel(nn.Module):
         return self.inn(z, cond, rev=True)
 
     def train(self, mode: bool = True):
-        self.feature_network.train(main_config.cinn_management.end_to_end)
+        self.feature_network.train(main_config.cinn_management.end_to_end and mode)
         self.fc_cond_network.train(mode)
         self.inn.train(mode)
 
@@ -322,17 +322,8 @@ class cINNTrainingUtilities:
             self.feature_optimizer = None
             self.feature_scheduler = None
             if main_config.cinn_management.end_to_end:
-                self.feature_optimizer = torch.optim.Adam(self.model.module.feature_network.parameters(),
-                                                        lr=config.cinn_training.lr_feature_net,
-                                                        betas=config.cinn_training.betas,
-                                                        eps=1e-4)
-                self.feature_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.feature_optimizer,
-                                                                        factor=sched_factor,
-                                                                        patience=sched_patience,
-                                                                        threshold=sched_trehsh,
-                                                                        min_lr=0, eps=1e-08,
-                                                                        cooldown=sched_cooldown,
-                                                                        verbose = True)
+                self.__load_feature_optimizer_and_scheduler()
+                
             
     def load(self, path):
         state_dicts = torch.load(path, map_location=utilities.get_device(verbose=False))
@@ -341,10 +332,14 @@ class cINNTrainingUtilities:
         self.model.load_state_dict(network_state_dict)
         try:
             self.optimizer.load_state_dict(state_dicts['opt'])
-            if state_dicts['opt_f'] is None:
+            
+            if not main_config.cinn_management.end_to_end:
                 self.feature_optimizer = None
+            elif state_dicts['opt_f'] is None:
+                self.__load_feature_optimizer_and_scheduler()
             else:
                 self.feature_optimizer.load_state_dict(state_dicts['opt_f'])
+                
         except:
             logger.error('Cannot load optimizer for some reason or other')
         
@@ -353,6 +348,7 @@ class cINNTrainingUtilities:
         self.optimizer.zero_grad()
         
         if self.feature_optimizer is not None:
+            logger.debug("Feature_optimizer step.")
             self.feature_optimizer.step()
             self.feature_optimizer.zero_grad()
             
@@ -367,6 +363,19 @@ class cINNTrainingUtilities:
         torch.save({'opt':self.optimizer.state_dict(),
                     'opt_f': None if self.feature_optimizer is None else self.feature_optimizer.state_dict(),
                     'net': self.model.state_dict()}, path)
+        
+    def __load_feature_optimizer_and_scheduler(self):
+        self.feature_optimizer = torch.optim.Adam(self.model.feature_network.parameters(),
+                                                        lr=self.config_training.lr_feature_net,
+                                                        betas=self.config_training.betas,
+                                                        eps=1e-4)
+        self.feature_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.feature_optimizer,
+                                                                factor=sched_factor,
+                                                                patience=sched_patience,
+                                                                threshold=sched_trehsh,
+                                                                min_lr=0, eps=1e-08,
+                                                                cooldown=sched_cooldown,
+                                                                verbose = True)
         
 
 
