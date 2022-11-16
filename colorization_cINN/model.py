@@ -210,7 +210,7 @@ class WrappedModel(nn.Module):
         x_ab.to(device)
         x_l.to(device)
         
-        # x_ab += 5e-2 * torch.cuda.FloatTensor(x_ab.shape).normal_()
+        x_ab += 1e-3 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
         if main_config.cinn_management.end_to_end:
             features = self.feature_network.features(x_l)[-1]
@@ -282,7 +282,7 @@ class WrappedModel(nn.Module):
         # Na razie tego nie używamy
         x_ab = F.interpolate(x_ab, size=main_config.cinn_management.img_dims)
         x_ab = x_ab.to(device)
-        # x_ab += 5e-2 * torch.cuda.FloatTensor(x_ab.shape).normal_()
+        x_ab += 1e-3 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
         features = net_feat.features(x_l)
         # features = features[:, :, 1:-1, 1:-1]
