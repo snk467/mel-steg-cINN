@@ -304,6 +304,7 @@ class WrappedModel(nn.Module):
 class cINNTrainingUtilities:
     def __init__(self, model: WrappedModel, config: main_config.cinn_training) -> None:
         self.model = model
+        self.model.to(utilities.get_device(verbose=False))
         self.config_training = config
         
         if config is not None:  
@@ -327,9 +328,9 @@ class cINNTrainingUtilities:
             
     def load(self, path):
         state_dicts = torch.load(path, map_location=utilities.get_device(verbose=False))
-        network_state_dict = {k:v for k,v in state_dicts['net'].items() if 'tmp_var' not in k}
         
-        self.model.load_state_dict(network_state_dict)
+        self.model.load_state_dict(state_dicts['net'])
+        self.model.to(utilities.get_device(verbose=False))
         try:
             self.optimizer.load_state_dict(state_dicts['opt'])
             
@@ -343,15 +344,16 @@ class cINNTrainingUtilities:
         except:
             logger.error('Cannot load optimizer for some reason or other')
         
-    def optimizer_step(self):
+    def optimizer_step(self):  
         self.optimizer.step()
         self.optimizer.zero_grad()
         
+        
         if self.feature_optimizer is not None:
-            logger.debug("Feature_optimizer step.")
-            self.feature_optimizer.step()
+            logger.debug("Feature_optimizer step.")   
+            self.feature_optimizer.step()   
             self.feature_optimizer.zero_grad()
-            
+                     
             
     def scheduler_step(self, value):            
         self.scheduler.step(value)

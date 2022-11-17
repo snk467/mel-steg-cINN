@@ -118,7 +118,6 @@ def train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_tra
 
         train_loss = loss(zz, jac)
         train_loss.backward()
-
         cinn_training_utilities.optimizer_step()
         
         # Report
@@ -168,8 +167,9 @@ def train(config=None, load=None):
             restored_model = wandb.restore(MODEL_FILE_NAME, run_path=load)# "lavanyashukla/save_and_restore/10pr4joa"
             cinn_training_utilities.load(restored_model.name)
             cinn_model = cinn_training_utilities.model
+            
+        logger.debug(f"cinn model device: {next(cinn_model.parameters()).device}")
         
-        cinn_model.to(device)
         step = 0
 
         for i_epoch in range(-config.pre_low_lr, config.n_epochs):
@@ -197,7 +197,9 @@ def train(config=None, load=None):
         # Save model
         if main_config.common.save_model:   
             logger.info("Saving cINN model.")
-            cinn_training_utilities.save(os.path.join(wandb.run.dir, MODEL_FILE_NAME))
+            model_path = os.path.join(os.getcwd(), MODEL_FILE_NAME)
+            cinn_training_utilities.save(model_path)
+            wandb.save(model_path)
 
         wandb.finish()
 
