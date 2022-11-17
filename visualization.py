@@ -61,7 +61,7 @@ def show_data(input_in, target_in, label, clear_input_in, restore_audio=False, a
     border_width = 10
     border = Image.fromarray(np.zeros((max_size, border_width))).convert('RGB')
     
-    display(Image.fromarray(np.hstack((np.array(L_img),
+    img = Image.fromarray(np.hstack((np.array(L_img),
                                np.array(border),
                                np.array(L_clear_img),
                                np.array(border),
@@ -69,12 +69,17 @@ def show_data(input_in, target_in, label, clear_input_in, restore_audio=False, a
                                np.array(border),
                                np.array(b_img),
                                np.array(border),
-                               np.array(rgb_img)))))
+                               np.array(rgb_img))))
+    
+    if config.common.present_data:
+        display(img)
     
     if restore_audio:
         filename = f"restored_audio_{label}" if audio_file_name is None else audio_file_name
         __restore_audio(clear_input, target, audio_file_name = filename)
         display(Audio(f"{filename}.wav"))
+        
+    return img
    
 def __get_colors_from_tensors(L_channel: torch.Tensor, ab_channels: torch.Tensor):
     colormap_lab = LUT.Colormap.from_colormap("parula_norm_lab")  
@@ -132,6 +137,8 @@ def predict_cinn_example(cinn_model, cinn_output_dimensions,dataset, config, des
     x_ab_sampled, b = cinn_model.reverse_sample(sample_z, cond)   
     print(desc)
     print("Target:")
-    show_data(input, F.interpolate(target[None, :], x_ab_sampled[0][0].shape)[0], filename, clear_input, restore_audio, audio_file_name=f"result_audio_{filename[0]}")
+    target_img = show_data(input, F.interpolate(target[None, :], x_ab_sampled[0][0].shape)[0], filename, clear_input, restore_audio, audio_file_name=f"result_audio_{filename[0]}")
     print("Result:")
-    show_data(x_l[0], x_ab_sampled[0], filename, clear_input, restore_audio, audio_file_name=f"result_audio_{filename[0]}")
+    result_img = show_data(x_l[0], x_ab_sampled[0], filename, clear_input, restore_audio, audio_file_name=f"result_audio_{filename[0]}")
+    
+    return [target_img, result_img]

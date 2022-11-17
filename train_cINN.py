@@ -165,7 +165,9 @@ def train(config=None, load=None):
         
         if load is not None:
             restored_model = wandb.restore(MODEL_FILE_NAME, run_path=load)# "lavanyashukla/save_and_restore/10pr4joa"
+            logger.info(f"Loading model: {load} from: {restored_model.name}")
             cinn_training_utilities.load(restored_model.name)
+            os.remove(restored_model.name)
             cinn_model = cinn_training_utilities.model
             
         logger.debug(f"cinn model device: {next(cinn_model.parameters()).device}")
@@ -189,19 +191,25 @@ def train(config=None, load=None):
             # if i_epoch > 0 and (i_epoch % config.checkpoint_save_interval) == 0:
             #     model.save(config.filename + '_checkpoint_%.4i' % (i_epoch * (1-config.checkpoint_save_overwrite)))
 
-        if main_config.common.present_data:
-            predict_cinn_example(cinn_model, cinn_output_dimensions, training_set, config, desc="Training set example", restore_audio=True)
-            print()
-            predict_cinn_example(cinn_model, cinn_output_dimensions, validation_set, config, desc="Validation set example", restore_audio=True)
+        logger.info("Generating examples.")
+        training_examples = predict_cinn_example(cinn_model, cinn_output_dimensions, training_set, config, desc="Training set example", restore_audio=True)
+        wandb.log({"training_examples": [wandb.Image(image) for image in training_examples]})
+        print()
+        validation_examples = predict_cinn_example(cinn_model, cinn_output_dimensions, validation_set, config, desc="Validation set example", restore_audio=True)
+        wandb.log({"validation_examples": [wandb.Image(image) for image in validation_examples]})
             
         # Save model
+        model_path = None
         if main_config.common.save_model:   
             logger.info("Saving cINN model.")
             model_path = os.path.join(os.getcwd(), MODEL_FILE_NAME)
             cinn_training_utilities.save(model_path)
-            wandb.save(model_path)
+            wandb.save(model_path, base_path=os.getcwd(), policy="now")
 
         wandb.finish()
+        
+        if model_path is not None:
+            os.remove(model_path)
 
     # os.makedirs(os.path.dirname(config.filename), exist_ok=True)
     # model.save(config.filename)
