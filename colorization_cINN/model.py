@@ -380,7 +380,7 @@ class cINNTrainingUtilities:
                                                                 verbose = True)
         
 class EarlyStopper:
-    def __init__(self, patience=10, min_delta=0.01):
+    def __init__(self, patience=10, min_delta=0.001):
         self.patience = patience
         self.min_delta = min_delta
         self.counter = 0

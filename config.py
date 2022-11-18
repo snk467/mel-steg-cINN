@@ -74,7 +74,8 @@ class Config(Structure):
         batch_size = 2
         dataset_size = 20        
         pretrain_epochs = 0
-        sampling_temperature = 1.0        
+        sampling_temperature = 1.0     
+        early_stopper_min_delta = 0.001   
 
     class cinn_management(Structure):
         # Architecture: 

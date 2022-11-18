@@ -153,7 +153,7 @@ def train(config=None, load=None):
         training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
         validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
 
-        early_stopper = model.EarlyStopper()
+        early_stopper = model.EarlyStopper(min_delta=config.early_stopper_min_delta)
 
         cinn_builder = model.cINN_builder(config)
     
