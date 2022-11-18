@@ -170,6 +170,8 @@ def train(config=None, load=None):
             cinn_training_utilities.load(restored_model.name)
             os.remove(restored_model.name)
             cinn_model = cinn_training_utilities.model
+
+        logger.info(f"Training feature net: {main_config.cinn_management.end_to_end}")
             
         logger.debug(f"cinn model device: {next(cinn_model.parameters()).device}")
         
