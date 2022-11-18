@@ -379,5 +379,25 @@ class cINNTrainingUtilities:
                                                                 cooldown=sched_cooldown,
                                                                 verbose = True)
         
+class EarlyStopper:
+    def __init__(self, patience=10, min_delta=0.01):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.min_validation_metric = np.inf
+
+    def early_stop(self, validation_metric):
+        if validation_metric < self.min_validation_metric:            
+            self.min_validation_metric = validation_metric
+            self.counter = 0
+            logger.info(f"New min_validation_metric: {self.min_validation_metric}")
+        elif validation_metric > (self.min_validation_metric + self.min_delta):
+            self.counter += 1
+            if self.counter >= self.patience:
+                logger.info(f"Early stopping - validation_metric: {validation_metric} and min_validation_metric: {self.min_validation_metric} + {self.min_delta}(min_delta)")
+                return True
+        return False       
+
+        
 
 

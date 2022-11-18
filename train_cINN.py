@@ -153,6 +153,7 @@ def train(config=None, load=None):
         training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
         validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
 
+        early_stopper = model.EarlyStopper()
 
         cinn_builder = model.cINN_builder(config)
     
@@ -187,6 +188,9 @@ def train(config=None, load=None):
 
             if i_epoch >= config.pretrain_epochs * 2:
                 cinn_training_utilities.scheduler_step(avg_loss)
+                
+            if early_stopper.early_stop(metrics["MSE"]):
+                break
 
             # if i_epoch > 0 and (i_epoch % config.checkpoint_save_interval) == 0:
             #     model.save(config.filename + '_checkpoint_%.4i' % (i_epoch * (1-config.checkpoint_save_overwrite)))
