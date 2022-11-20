@@ -16,7 +16,7 @@ from colorization_cINN.subnet_coupling import *
 from config import config as main_config
 import utilities
 import logger as logger_module
-
+from Models.UNET.unet_models import *
 
 # region Globals
 
@@ -174,9 +174,9 @@ class cINN_builder:
         
         return cinn, output_dimensions
     
-    def get_feature_net(self):
-        from Models.UNET.unet_models import UNet_256_2
-        feature_net = torch.load(main_config.cinn_management.feature_net_path, map_location=utilities.get_device(verbose=False))
+    def get_feature_net(self):        
+        feature_net = UNet_128(1)
+        feature_net.load_state_dict(torch.load(main_config.cinn_management.feature_net_path), map_location=utilities.get_device(verbose=False))
         feature_net.eval()
         return feature_net      
     
@@ -213,11 +213,11 @@ class WrappedModel(nn.Module):
         # x_ab += 1e-3 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
         if main_config.cinn_management.end_to_end:
-            features = self.feature_network.features(x_l)[-1]
+            features, _ = self.feature_network.features(x_l)
             # features = features[:, :, 1:-1, 1:-1]
         else:
             with torch.no_grad():
-                features = self.feature_network.features(x_l)[-1]
+                features, _ = self.feature_network.features(x_l)
                 # features = features[:, :, 1:-1, 1:-1]
         
         logger.debug(f"features shape:{features.shape}")
@@ -284,15 +284,15 @@ class WrappedModel(nn.Module):
         x_ab = x_ab.to(device)
         # x_ab += 1e-3 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
-        features = net_feat.features(x_l)
+        features, from_features = net_feat.features(x_l)
         # features = features[:, :, 1:-1, 1:-1]
 
         
         # print(features.shape)
-        ab_pred = net_feat.forward_from_features(*features)
+        ab_pred = net_feat.forward_from_features(*from_features)
 
         # print(net_cond.training)
-        cond = [features[-1], net_cond(features[-1]).squeeze()]
+        cond = [features, net_cond(features).squeeze()]
 
         self.train()
 

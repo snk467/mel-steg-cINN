@@ -16,6 +16,7 @@ from PIL import Image
 from visualization import show_data
 from datetime import datetime
 
+MODEL_FILE_NAME = "unet_model.pt"
 
 def train_one_epoch(model, training_loader, optimizer, epoch, step):
     running_metrics = None
@@ -92,7 +93,7 @@ def validate(model, validation_loader):
     return avg_metrics
 
 def train(config = None):    
-    with wandb.init(project="mel-steg-cINN", entity="snikiel", config=config):
+    with wandb.init(project="UNET", entity="snikiel", config=config):
         config = wandb.config    
     
         # Create datasets for training & validation
@@ -170,10 +171,12 @@ def train(config = None):
             predict_example(model, validation_set, desc="Validation set example")
         
         # Save model
+        model_path = None
         if common_config.save_model:
-            dataset_name = os.path.splitext(os.path.basename(common_config.dataset_location))[0]
-            timestamp = datetime.now().strftime("%d%m%Y%H%M%S")
-            torch.save(model, os.path.join(wandb.run.dir, f"model_{config.model}_{config.dataset_size}_{dataset_name}_{timestamp}.pt"))
+            logger.info("Saving UNET model.")
+            model_path = os.path.join(os.getcwd(), MODEL_FILE_NAME)
+            torch.save(model.state_dict(), model_path)
+            wandb.save(model_path, base_path=os.getcwd())
         
         # Log average epoch duration
         avg_epoch_runtime = sum(epoch_durations) / len(epoch_durations)
@@ -181,6 +184,9 @@ def train(config = None):
         
         # Finish the Weights & Biases run
         wandb.finish()
+        
+        if model_path is not None:
+            os.remove(model_path)
     
 def print_initial_parameters(config):
     logger.info("INITIAL PARAMETERS")
@@ -241,8 +247,9 @@ def prepare_globals():
     models = {
         "custom_unet": custom_UNet,
         "unet": UNet,
-        "unet_256": UNet_256,
-        "unet_256_2": UNet_256_2
+        "unet_32": UNet_32,
+        "unet_128": UNet_128,
+        "unet_256": UNet_256
     }
 
     if config.common.present_data:
@@ -256,7 +263,7 @@ def run(sweep=False):
     
     if sweep:       
         logger.info(config.unet_sweep_config) 
-        sweep_id = wandb.sweep(config.unet_sweep_config, project="mel-steg-cINN", entity="snikiel")
+        sweep_id = wandb.sweep(config.unet_sweep_config, project="UNET", entity="snikiel")
         wandb.agent(sweep_id, function=train, count=config.common.sweep_count)
     else:
         train(config.unet_training)
