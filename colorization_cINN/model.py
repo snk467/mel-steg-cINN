@@ -20,7 +20,7 @@ from Models.UNET.unet_models import *
 
 # region Globals
 
-feature_channels = 256
+feature_channels = 128
 fc_cond_length = 512
 n_blocks_fc = 8
 outputs = []
@@ -45,13 +45,15 @@ class cINN_builder:
                     ConditionNode(fc_cond_length)]
         
         self.fc_cond_net = nn.Sequential(*[
-                              nn.Conv2d(feature_channels, 128, 3, stride=2, padding=1), # 32 x 32
+                              nn.Conv2d(feature_channels, 64, 3, stride=2, padding=1), # 64 x 64
                               nn.LeakyReLU(),
-                              nn.Conv2d(128, 256, 3, stride=2, padding=1), # 16 x 16
+                              nn.Conv2d(64, 128, 3, stride=2, padding=1), # 32 x 32
                               nn.LeakyReLU(),
-                              nn.Conv2d(256, 256, 3, stride=2, padding=1), # 8 x 8
+                              nn.Conv2d(128, 128, 3, stride=2, padding=1), # 16 x 16
                               nn.LeakyReLU(),
-                              nn.Conv2d(256, fc_cond_length, 3, stride=2, padding=1), # 4 x 4
+                              nn.Conv2d(128, 128, 3, stride=2, padding=1), # 8 x 8
+                              nn.LeakyReLU(),
+                              nn.Conv2d(128, fc_cond_length, 3, stride=2, padding=1), # 4 x 4
                               nn.AvgPool2d(4),
                               nn.BatchNorm2d(fc_cond_length),
                             ])
@@ -176,7 +178,7 @@ class cINN_builder:
     
     def get_feature_net(self):        
         feature_net = UNet_128(1)
-        feature_net.load_state_dict(torch.load(main_config.cinn_management.feature_net_path), map_location=utilities.get_device(verbose=False))
+        feature_net.load_state_dict(torch.load(main_config.cinn_management.feature_net_path, map_location=utilities.get_device(verbose=False)))
         feature_net.eval()
         return feature_net      
     
@@ -200,12 +202,12 @@ class WrappedModel(nn.Module):
         x_l = x[:, 0:1, :, :]
         x_ab = x[:, 1:, :, :]
         
-        logger.debug(f"x_L input shape:{x_l.shape}")
-        logger.debug(f"x_ab input shape:{x_ab.shape}")
+        logger.debug(f"x_L input shape: {x_l.shape}")
+        logger.debug(f"x_ab input shape: {x_ab.shape}")
 
         x_ab = F.interpolate(x_ab, size=main_config.cinn_management.img_dims)
 
-        logger.debug(f"x_ab shape after interpolate:{x_ab.shape}")
+        logger.debug(f"x_ab shape after interpolate: {x_ab.shape}")
         
         x_ab.to(device)
         x_l.to(device)
@@ -220,9 +222,12 @@ class WrappedModel(nn.Module):
                 features, _ = self.feature_network.features(x_l)
                 # features = features[:, :, 1:-1, 1:-1]
         
-        logger.debug(f"features shape:{features.shape}")
+        logger.debug(f"features shape: {features.shape}")
 
         cond = [features, self.fc_cond_network(features).squeeze()]
+        
+        logger.debug(f"cond[0].shape: {cond[0].shape}")
+        logger.debug(f"cond[1].shape: {cond[1].shape}")
 
         z, jac = self.inn(x_ab, cond)
 
