@@ -11,6 +11,7 @@ from utilities import *
 from tqdm import tqdm
 import PIL.Image as Image
 import h5py
+import LUT
 
 class AudioDatasetProcessor:
     
@@ -36,7 +37,7 @@ class AudioDatasetProcessor:
 
         return loaded_audio
 
-    def get_color_mel_spectrograms(self, loaded_audio, normalized=True, colormap="parula_rgb"):
+    def get_color_mel_spectrograms(self, loaded_audio, colormap, normalized=True):
         mel_spectrograms = []
         for audio in tqdm(loaded_audio, leave=False, desc="Calculating color mel spectrograms"):
             mel_spectrograms.append(audio.get_color_mel_spectrogram(normalized=normalized, colormap=colormap))
@@ -147,7 +148,7 @@ class AudioDatasetProcessor:
         for audio_files_batch in tqdm(self.__get_batches(self.audio_files), leave=False, desc="Precessing audio files batches"):
             loaded_audio = self.load_audio_files(audio_files_batch)
 
-            color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio, colormap=args.colormap)
+            color_mel_spectrograms = self.get_color_mel_spectrograms(loaded_audio, colormap=LUT.Colormap.from_colormap(args.colormap))
 
             restored_audio = None
             if args.restore:
@@ -232,7 +233,7 @@ if __name__ == "__main__":
         logger_module.enable_debug_mode()
 
     # Get audio processor
-    audio_processor = AudioDatasetProcessor(args.input_dir, config.audio_parameters.resolution_80x80)
+    audio_processor = AudioDatasetProcessor(args.input_dir, config.audio_parameters.resolution_128x128)
     logger.info("Audio processor initialized.")
 
     if args.statistics:

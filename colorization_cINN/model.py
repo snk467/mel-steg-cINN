@@ -20,7 +20,7 @@ from Models.UNET.unet_models import *
 
 # region Globals
 
-feature_channels = 128
+feature_channels = 64
 fc_cond_length = 512
 n_blocks_fc = 8
 outputs = []
@@ -41,21 +41,25 @@ class cINN_builder:
     def __init__(self, config_training):
         self.config_training = config_training
         
-        self.conditions = [ConditionNode(feature_channels, main_config.cinn_management.img_dims[0], main_config.cinn_management.img_dims[1]),
-                    ConditionNode(fc_cond_length)]
+        self.conditions = [
+            ConditionNode(8, main_config.cinn_management.img_dims[0], main_config.cinn_management.img_dims[1]),
+            ConditionNode(16, main_config.cinn_management.img_dims[0] // 2, main_config.cinn_management.img_dims[1] // 2),
+            ConditionNode(32, main_config.cinn_management.img_dims[0] // 4, main_config.cinn_management.img_dims[1] // 4),
+            ConditionNode(64, main_config.cinn_management.img_dims[0] // 8, main_config.cinn_management.img_dims[1] // 8),
+            ConditionNode(fc_cond_length)]
         
         self.fc_cond_net = nn.Sequential(*[
-                              nn.Conv2d(feature_channels, 64, 3, stride=2, padding=1), # 64 x 64
+                              nn.Conv2d(feature_channels, fc_cond_length, 3, stride=2, padding=1), # 64 x 64 # 8x8
                               nn.LeakyReLU(),
-                              nn.Conv2d(64, 128, 3, stride=2, padding=1), # 32 x 32
-                              nn.LeakyReLU(),
-                              nn.Conv2d(128, 128, 3, stride=2, padding=1), # 16 x 16
-                              nn.LeakyReLU(),
-                              nn.Conv2d(128, 128, 3, stride=2, padding=1), # 8 x 8
-                              nn.LeakyReLU(),
-                              nn.Conv2d(128, fc_cond_length, 3, stride=2, padding=1), # 4 x 4
-                              nn.AvgPool2d(4),
-                              nn.BatchNorm2d(fc_cond_length),
+                            #   nn.Conv2d(64, 128, 3, stride=2, padding=1), # 32 x 32
+                            #   nn.LeakyReLU(),
+                            #   nn.Conv2d(128, 128, 3, stride=2, padding=1), # 16 x 16 
+                            #   nn.LeakyReLU(),
+                            #   nn.Conv2d(128, 128, 3, stride=2, padding=1), # 8 x 8
+                            #   nn.LeakyReLU(),
+                            #  nn.Conv2d(128, fc_cond_length, 2, stride=2, padding=1), # 4 x 4
+                               nn.AvgPool2d(4),
+                               nn.BatchNorm2d(fc_cond_length),
                             ])
 
     def random_orthog(self, n):
@@ -64,36 +68,12 @@ class cINN_builder:
         w, S, V = np.linalg.svd(w)
         return torch.FloatTensor(w)
 
-    def cond_subnet(self, level, c_out, extra_conv=False):
-        c_intern = [feature_channels, 128, 128, 256]
-        modules = []
-
-        for i in range(level):
-            modules.extend([nn.Conv2d(c_intern[i], c_intern[i+1], 3, stride=2, padding=1),
-                            nn.LeakyReLU() ])
-
-        if extra_conv:
-            modules.extend([
-                nn.Conv2d(c_intern[level], 128, 3, padding=1),
-                nn.LeakyReLU(),
-                nn.Conv2d(128, 2*c_out, 3, padding=1),
-            ])
-        else:
-            modules.append(nn.Conv2d(c_intern[level], 2*c_out, 3, padding=1))
-
-        modules.append(nn.BatchNorm2d(2*c_out))
-
-        return nn.Sequential(*modules)
-
     def _add_conditioned_section(self, nodes, depth, channels_in, channels, cond_level):
-
         for k in range(depth):
-            nodes.append(Node([nodes[-1].out0],
-                                subnet_coupling_layer,
-                                {'clamp':self.config_training.clamping, 'F_class':F_conv,
-                                'subnet':self.cond_subnet(cond_level, channels//2), 'sub_len':channels,
-                                'F_args':{'leaky_slope': 5e-2, 'channels_hidden':channels}},
-                                conditions=[self.conditions[0]], name=F'conv_{k}'))
+            subnet_kwargs = {'leaky_slope': 5e-2, 'channels_hidden':channels}
+            nodes.append(Node([nodes[-1].out0], GLOWCouplingBlock,
+                    {'clamp':self.config_training.clamping, 'subnet_constructor':functools.partial(F_conv, **subnet_kwargs)},
+                    conditions=[self.conditions[cond_level]], name=F'conv_{k}'))
             nodes.append(Node([nodes[-1].out0], Fixed1x1Conv, {'M':self.random_orthog(channels_in)}))
 
     def _add_split_downsample(self, nodes, split, downsample, channels_in, channels):
@@ -123,7 +103,7 @@ class cINN_builder:
             subnet_kwargs = {'internal_size': None}
             nodes.append(Node([nodes[-1].out0], GLOWCouplingBlock,
                     {'clamp':self.config_training.clamping, 'subnet_constructor':functools.partial(F_fully_connected, **subnet_kwargs)},
-                    conditions=[self.conditions[1]], name=F'fc_{k}'))
+                    conditions=[self.conditions[-1]], name=F'fc_{k}'))
 
         nodes.append(OutputNode([nodes[-1].out0], name='out'))
 
@@ -177,7 +157,7 @@ class cINN_builder:
         return cinn, output_dimensions
     
     def get_feature_net(self):        
-        feature_net = UNet_128(1)
+        feature_net = UNet(1)
         feature_net.load_state_dict(torch.load(main_config.cinn_management.feature_net_path, map_location=utilities.get_device(verbose=False)))
         feature_net.eval()
         return feature_net      
@@ -221,13 +201,11 @@ class WrappedModel(nn.Module):
             with torch.no_grad():
                 features, _ = self.feature_network.features(x_l)
                 # features = features[:, :, 1:-1, 1:-1]
-        
-        logger.debug(f"features shape: {features.shape}")
 
-        cond = [features, self.fc_cond_network(features).squeeze()]
+        cond = [*features, self.fc_cond_network(features[-1]).squeeze()]
         
-        logger.debug(f"cond[0].shape: {cond[0].shape}")
-        logger.debug(f"cond[1].shape: {cond[1].shape}")
+        for i, c in enumerate(cond):
+            logger.debug(f"cond[{i}].shape: {c.shape}")
 
         z, jac = self.inn(x_ab, cond)
 
@@ -294,10 +272,10 @@ class WrappedModel(nn.Module):
 
         
         # print(features.shape)
-        ab_pred = net_feat.forward_from_features(*from_features)
+        ab_pred = net_feat.forward_from_features(from_features)
 
         # print(net_cond.training)
-        cond = [features, net_cond(features).squeeze()]
+        cond = [*features, net_cond(features[-1]).squeeze()]
 
         self.train()
 

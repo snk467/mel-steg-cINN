@@ -52,6 +52,7 @@ class Config(Structure):
             global_max = 1.4316513538360596
 
     class unet_training(Structure):  
+        input_dims = (64, 64)
         dataset_size = 10                   # If null then whole dataset is taken
         batch_size = 10
         epochs = 5

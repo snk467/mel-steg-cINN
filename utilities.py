@@ -79,7 +79,7 @@ class MelSpectrogram:
         self.mel_spectrogram_data = mel_spectrogram_data
         self.normalized = normalized
         self.range = range 
-        if type(colormap) != Colormap:
+        if colormap is not None and type(colormap) != Colormap:
             raise ArgumentError()
         self.colormap = colormap
         self.config = config

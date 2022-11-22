@@ -1,3 +1,4 @@
+from math import ceil
 import time
 import torch
 import random
@@ -21,6 +22,8 @@ MODEL_FILE_NAME = "unet_model.pt"
 def train_one_epoch(model, training_loader, optimizer, epoch, step):
     running_metrics = None
     avg_metrics = None
+    
+    batch_checkpoint = ceil(len(training_loader) / 10)
 
     # Here, we use enumerate(training_loader) instead of
     # iter(training_loader) so that we can track the batch
@@ -51,11 +54,11 @@ def train_one_epoch(model, training_loader, optimizer, epoch, step):
         avg_metrics = metrics.add_metrics(avg_metrics, batch_metrics)
         
         # Report
-        if i % common_config.batch_checkpoint == (common_config.batch_checkpoint - 1):
+        if i % batch_checkpoint == (batch_checkpoint - 1):
             step +=1
 
             # Calculate current checkpoint metrics
-            current_metrics = metrics.divide_metrics(running_metrics, common_config.batch_checkpoint)
+            current_metrics = metrics.divide_metrics(running_metrics, batch_checkpoint)
 
             # Log metrics           
             metrics.log_metrics(batch_metrics, "train", step, batch_id=i)
@@ -99,15 +102,19 @@ def train(config = None):
         # Create datasets for training & validation
         logger.info("Import training set.")
         
+        logger.info(config.input_dims)
+        
         training_set = SpectrogramsDataset(common_config.dataset_location,
                                            train=True,
                                            size=config.dataset_size,
-                                           augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
+                                           augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]),
+                                           output_dim=config.input_dims)
         logger.info("Import validation set.")
         validation_set = SpectrogramsDataset(common_config.dataset_location,
                                              train=False,
                                              size=config.dataset_size,
-                                             augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
+                                             augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]),
+                                             output_dim=config.input_dims)
 
         # Create data loaders for our datasets; shuffle for training, not for validation
         training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
@@ -251,11 +258,6 @@ def prepare_globals():
         "unet_128": UNet_128,
         "unet_256": UNet_256
     }
-
-    if config.common.present_data:
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        with Image.open(os.path.join(dir_path,"Lenna_(test_image).png")) as img:
-            img.show()
         
 def run(sweep=False):
     

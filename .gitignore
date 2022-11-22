@@ -180,7 +180,7 @@ colorization_cINN/joint_bilateral_filter.c
 # Models
 /models/model_unet_256_None_melspectrograms_parula_norm_lab_13100_80x80_21102022181501.pt
 /models/model_unet_256_2_None_melspectrograms_parula_norm_lab_13100_512x512_08112022230127.pt
+/models/unet_model_2ox5c5v7.pt
 
 # Local configuration files
 config.yml
-models/unet_model_2ox5c5v7.pt

@@ -8,6 +8,7 @@ import logger as logger_module
 from zipfile import ZipFile
 import zipfile
 import h5py
+import torch.nn.functional as F
         
 # Get logger
 logger = logger_module.get_logger(__name__)
@@ -15,10 +16,11 @@ logger = logger_module.get_logger(__name__)
 
 class SpectrogramsDataset(Dataset):
 
-    def __init__(self, dataset_location, train, colormap="parula_norm_lab", augmentor=None, size=None):
+    def __init__(self, dataset_location, train, colormap="parula_norm_lab", augmentor=None, size=None, output_dim=None):
 
         self.__dataset_file = h5py.File(dataset_location, 'r')
         self.dataset = self.__dataset_file["melspectrograms"]
+        self.output_dim = output_dim
         
         if size is not None and size < len(self.dataset):
             self.indexes = list(range(size))
@@ -49,6 +51,10 @@ class SpectrogramsDataset(Dataset):
         # Adjust axies 
         L = torch.reshape(L, (1, L.shape[0], L.shape[1]))
         ab = torch.permute(ab, (2, 0, 1))
+        
+        if self.output_dim is not None:
+            L = F.interpolate(L[None, :], size=self.output_dim)[0]
+            ab = F.interpolate(ab[None, :], size=self.output_dim)[0]
         
         # Augment tensor
         L_clear = L
