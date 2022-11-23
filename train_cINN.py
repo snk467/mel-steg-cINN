@@ -142,12 +142,14 @@ def train(config=None, load=None):
         training_set = SpectrogramsDataset(main_config.common.dataset_location,
                                         train=True,
                                         size=config.dataset_size,
-                                        augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
+                                        augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]),
+                                        output_dim=main_config.cinn_management.img_dims)
 
         validation_set = SpectrogramsDataset(main_config.common.dataset_location,
                                         train=False,
                                         size=config.dataset_size,
-                                        augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]))
+                                        augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]),
+                                        output_dim=main_config.cinn_management.img_dims)
 
         # Create data loaders for our datasets; shuffle for training, not for validation
         training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
@@ -198,10 +200,10 @@ def train(config=None, load=None):
             #     model.save(config.filename + '_checkpoint_%.4i' % (i_epoch * (1-config.checkpoint_save_overwrite)))
 
         logger.info("Generating examples.")
-        training_examples = predict_cinn_example(cinn_model, cinn_output_dimensions, training_set, config, desc="Training set example", restore_audio=True)
+        training_examples = predict_cinn_example(cinn_model, cinn_output_dimensions, training_set, config, desc="Training set example", restore_audio=False)
         wandb.log({"training_examples": [wandb.Image(image) for image in training_examples]})
         print()
-        validation_examples = predict_cinn_example(cinn_model, cinn_output_dimensions, validation_set, config, desc="Validation set example", restore_audio=True)
+        validation_examples = predict_cinn_example(cinn_model, cinn_output_dimensions, validation_set, config, desc="Validation set example", restore_audio=False)
         wandb.log({"validation_examples": [wandb.Image(image) for image in validation_examples]})
             
         # Save model

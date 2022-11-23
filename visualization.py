@@ -133,7 +133,7 @@ def predict_cinn_example(cinn_model, cinn_output_dimensions,dataset, config, des
     input, target, filename, clear_input  = dataset[example_id]
     sample_z = __sample_outputs(config.sampling_temperature, cinn_output_dimensions, 1)
     x_l, x_ab, cond, ab_pred = cinn_model.prepare_batch((input, target, filename, clear_input))
-    cond[1] = cond[1][None, :]
+    cond[-1] = cond[-1][None, :]
     x_ab_sampled, b = cinn_model.reverse_sample(sample_z, cond)   
     print(desc)
     print("Target:")
