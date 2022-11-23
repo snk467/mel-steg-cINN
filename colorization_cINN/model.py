@@ -22,7 +22,7 @@ from Models.UNET.unet_models import *
 
 feature_channels = 64
 fc_cond_length = 512
-n_blocks_fc = 8
+n_blocks_fc = 2
 outputs = []
 
 sched_factor = 0.2
@@ -110,20 +110,20 @@ class cINN_builder:
     def build_cinn(self):
         nodes = [InputNode(2, *main_config.cinn_management.img_dims, name='inp')]
         # 2x64x64 px
-        self._add_conditioned_section(nodes, depth=4, channels_in=2, channels=32, cond_level=0)
-        self._add_split_downsample(nodes, split=False, downsample='reshape', channels_in=2, channels=64)
+        self._add_conditioned_section(nodes, depth=2, channels_in=2, channels=8, cond_level=0)
+        self._add_split_downsample(nodes, split=False, downsample='reshape', channels_in=2, channels=8)
 
         # 8x32x32 px
-        self._add_conditioned_section(nodes, depth=6, channels_in=8, channels=64, cond_level=1)
-        self._add_split_downsample(nodes, split=(16, 16), downsample='reshape', channels_in=8, channels=128)
+        self._add_conditioned_section(nodes, depth=2, channels_in=8, channels=16, cond_level=1)
+        self._add_split_downsample(nodes, split=(16, 16), downsample='reshape', channels_in=8, channels=16)
 
         # 16x16x16 px
-        self._add_conditioned_section(nodes, depth=6, channels_in=16, channels=128, cond_level=2)
-        self._add_split_downsample(nodes, split=(32, 32), downsample='reshape', channels_in=16, channels=256)
+        self._add_conditioned_section(nodes, depth=2, channels_in=16, channels=32, cond_level=2)
+        self._add_split_downsample(nodes, split=(32, 32), downsample='reshape', channels_in=16, channels=32)
 
         # 32x8x8 px
-        self._add_conditioned_section(nodes, depth=6, channels_in=32, channels=256, cond_level=3)
-        self._add_split_downsample(nodes, split=(32, 3*32), downsample='haar', channels_in=32, channels=256)
+        self._add_conditioned_section(nodes, depth=2, channels_in=32, channels=64, cond_level=3)
+        self._add_split_downsample(nodes, split=(32, 3*32), downsample='haar', channels_in=32, channels=64)
 
         # 32x4x4 = 512 px
         self._add_fc_section(nodes)

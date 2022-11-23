@@ -184,3 +184,4 @@ colorization_cINN/joint_bilateral_filter.c
 
 # Local configuration files
 config.yml
+models/unet_model_playful-jazz-11_64x64.pt
