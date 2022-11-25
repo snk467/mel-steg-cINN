@@ -1,35 +1,36 @@
 program: train_cINN.py
 project: cINN
 entity: snikiel
-method: random
+method: bayes
+name: cinn_sweep_non_feature_net
 metric:
     goal: minimize
     name: VALID_AVG_MSE
 parameters:
     batch_size:
-      value: 8
+      values: [8, 16, 24, 48]
     dataset_size:
-      value: 160
+      value: 13100
     betas:
       value:
       - 0.9
       - 0.999
     clamping:
       distribution: uniform
-      max: 1.0
+      max: 2.0
       min: 0.0    
     init_scale:
-      distribution: uniform
-      max: 0.1
-      min: 0.01  
+      value: 0.03  
     lr:
       distribution: inv_log_uniform_values
       max: 0.01
-      min: 1.0e-06
+      min: 1.0e-05
+    lr_feature_net:
+      value: 1.0e-04
     n_epochs:
-      value: 10
+      value: 20
     n_its_per_epoch:
-      value: 256
+      value: 50
     pre_low_lr:
       value: 0
     pretrain_epochs:
@@ -38,3 +39,5 @@ parameters:
       value: 1.0
     weight_decay:
       value: 1.0e-05
+    early_stopper_min_delta:
+      value: 0.01

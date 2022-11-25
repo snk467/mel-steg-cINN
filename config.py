@@ -77,6 +77,7 @@ class Config(Structure):
         pretrain_epochs = 0
         sampling_temperature = 1.0     
         early_stopper_min_delta = 0.001   
+        early_stopper_patience = 10
 
     class cinn_management(Structure):
         # Architecture: 

@@ -164,20 +164,20 @@ def train(config=None, load=None):
         training_set = SpectrogramsDataset(main_config.common.dataset_location,
                                         train=True,
                                         size=config.dataset_size,
-                                        augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]),
+                                        augmentor=GaussianNoise(main_config.common.noise_mean, main_config.common.noise_variance),
                                         output_dim=main_config.cinn_management.img_dims)
 
         validation_set = SpectrogramsDataset(main_config.common.dataset_location,
                                         train=False,
                                         size=config.dataset_size,
-                                        augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]),
+                                        augmentor=GaussianNoise(main_config.common.noise_mean, main_config.common.noise_variance),
                                         output_dim=main_config.cinn_management.img_dims)
 
         # Create data loaders for our datasets; shuffle for training, not for validation
         training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
         validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
 
-        early_stopper = model.EarlyStopper(min_delta=config.early_stopper_min_delta)
+        early_stopper = model.EarlyStopper(patience=config.early_stopper_patience, min_delta=config.early_stopper_min_delta)
 
         cinn_builder = model.cINN_builder(config)
     
@@ -258,6 +258,7 @@ if __name__ == "__main__":
     parser.add_argument('--clamping', type=float, required=False)
     parser.add_argument('--init_scale', type=float, required=False)
     parser.add_argument('--lr', type=float, required=False)
+    parser.add_argument('--lr_feature_net', type=float, required=False)
     parser.add_argument('--n_epochs', type=int, required=False)
     parser.add_argument('--n_its_per_epoch', type=int, required=False)
     parser.add_argument('--pre_low_lr', type=float, required=False)
@@ -265,9 +266,10 @@ if __name__ == "__main__":
     parser.add_argument('--sampling_temperature', type=float, required=False)
     parser.add_argument('--weight_decay', type=float, required=False)
     parser.add_argument('--load', type=str, required=False)
+    parser.add_argument('--early_stopper_min_delta', type=float, required=False)
     args = parser.parse_args()
     
-    sweep_args_dict = {k: args[k] for k in vars(args).keys() - {'load'}}
+    sweep_args_dict = {k: vars(args)[k] for k in vars(args).keys() - {'load'}}
     sweep_args_present = all(value is not None for value in sweep_args_dict.values()) 
     
     if sweep_args_present:

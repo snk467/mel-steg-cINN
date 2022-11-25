@@ -107,13 +107,13 @@ def train(config = None):
         training_set = SpectrogramsDataset(common_config.dataset_location,
                                            train=True,
                                            size=config.dataset_size,
-                                           augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]),
+                                           augmentor=GaussianNoise(common_config.noise_mean, common_config.noise_variance),
                                            output_dim=config.input_dims)
         logger.info("Import validation set.")
         validation_set = SpectrogramsDataset(common_config.dataset_location,
                                              train=False,
                                              size=config.dataset_size,
-                                             augmentor=GaussianNoise([0.0], [0.001, 0.001, 0.0]),
+                                             augmentor=GaussianNoise(common_config.noise_mean, common_config.noise_variance),
                                              output_dim=config.input_dims)
 
         # Create data loaders for our datasets; shuffle for training, not for validation
