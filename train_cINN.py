@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import gc
+import math
 import os
 import random
 import sys
@@ -33,9 +34,15 @@ logger = logger_module.get_logger(__name__)
 
 MODEL_FILE_NAME = "cinn_model.pt"
 
+
+
+
 def prepare_training():
     global device
     device = utilities.get_device()  
+    
+    global mse_loss
+    mse_loss = torch.nn.MSELoss().to(device)
     
     # if config.cinn_management.load_file:
     #     model.load(config.cinn_training.load_file)
@@ -53,11 +60,17 @@ def prepare_training():
     global tot_output_size
     tot_output_size = 2 * main_config.cinn_management.img_dims[0] * main_config.cinn_management.img_dims[1]
 
-def loss(zz, jac):
+def loss(x_ab_pred, x_ab_pred_feature_net, zz, jac):
+    
+    mse = mse_loss(x_ab_pred, x_ab_pred_feature_net)
+    
     neg_log_likeli = 0.5 * zz - jac
 
     l = torch.mean(neg_log_likeli) / tot_output_size
-    return l
+    
+    mse_importance = 0.6
+    
+    return (1.0 - mse_importance) * torch.exp(l) + mse_importance * mse, mse.item(), l.item()
 
 def sample_outputs(sigma, out_shape, batch_size):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
@@ -78,7 +91,7 @@ def validate(cinn_model, cinn_output_dimensions, config, validation_loader):
 
         x_ab_output = cinn_model.reverse_sample(z, cond)
 
-        _, batch_metrics = metrics.gather_batch_metrics(x_ab_output[0], x_ab_target)
+        _, batch_metrics = metrics.gather_batch_metrics(x_ab_output[0], x_ab_target.to(device))
 
         avg_metrics = metrics.add_metrics(avg_metrics, batch_metrics)                
     
@@ -111,19 +124,28 @@ def train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_tra
 
     for i_batch , x in enumerate(training_loader):
 
-        L, ab, _, _ = x  
-        input = torch.cat((L, ab), dim=1).to(device)
+        x_l, x_ab_target, cond, x_ab_pred_feature_net = cinn_model.prepare_batch(x) 
 
-        zz, jac = cinn_model(input)
+        # L, ab, _, _ = x  
+        
+        input = torch.cat((x_l, x_ab_target), dim=1).to(device)
 
-        train_loss = loss(zz, jac)
+        z, zz, jac = cinn_model(input)
+        
+        cinn_model.eval()
+        
+        x_ab_pred = cinn_model.reverse_sample(z, cond)
+        
+        cinn_model.train()
+
+        train_loss, mse, nll = loss(x_ab_pred[0], x_ab_target, zz, jac)
         train_loss.backward()
         cinn_training_utilities.optimizer_step()
         
         # Report
         if i_batch % batch_checkpoint == (batch_checkpoint - 1):
             step +=1
-            metrics.log_metrics({'batch_loss': train_loss.item()}, "train", step, i_batch)
+            metrics.log_metrics({'batch_loss': train_loss.item(), 'mse': mse, 'nll': math.exp(nll)}, "train", step, i_batch)
 
         avg_loss.append(train_loss.item())
 

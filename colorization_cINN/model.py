@@ -216,11 +216,16 @@ class WrappedModel(nn.Module):
         #         for inner_item in item:
         #             print(type(inner_item), inner_item.shape)
                 
+        # print(len(z))        
         # print(z[0].shape)
+        # print(z[1].shape)
+        # print(z[2].shape)
+        # print(z[3].shape)
         zz = sum(torch.sum(o**2) for o in z)
+
         # jac = self.inn.jacobian(run_forward=False)
 
-        return zz, jac
+        return z, zz, jac
 
     def reverse_sample(self, z, cond):
         return self.inn(z, cond, rev=True)
@@ -264,7 +269,6 @@ class WrappedModel(nn.Module):
 
         # Na razie tego nie używamy
         x_ab = F.interpolate(x_ab, size=main_config.cinn_management.img_dims)
-        x_ab = x_ab.to(device)
         # x_ab += 1e-3 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
         features, from_features = net_feat.features(x_l)
@@ -279,7 +283,7 @@ class WrappedModel(nn.Module):
 
         self.train()
 
-        return x_l.detach().to('cpu'), x_ab.detach(), cond, ab_pred.detach().to('cpu')
+        return x_l.detach().to('cpu'), x_ab.detach().to('cpu'), cond, ab_pred.detach().to('cpu')
     
     
     
