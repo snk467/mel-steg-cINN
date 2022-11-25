@@ -22,7 +22,7 @@ from Models.UNET.unet_models import *
 
 feature_channels = 64
 fc_cond_length = 512
-n_blocks_fc = 2
+n_blocks_fc = 1
 outputs = []
 
 sched_factor = 0.2
@@ -45,21 +45,22 @@ class cINN_builder:
             ConditionNode(8, main_config.cinn_management.img_dims[0], main_config.cinn_management.img_dims[1]),
             ConditionNode(16, main_config.cinn_management.img_dims[0] // 2, main_config.cinn_management.img_dims[1] // 2),
             ConditionNode(32, main_config.cinn_management.img_dims[0] // 4, main_config.cinn_management.img_dims[1] // 4),
-            ConditionNode(64, main_config.cinn_management.img_dims[0] // 8, main_config.cinn_management.img_dims[1] // 8),
-            ConditionNode(fc_cond_length)]
+            ConditionNode(64, main_config.cinn_management.img_dims[0] // 8, main_config.cinn_management.img_dims[1] // 8)]#,
+            # ConditionNode(fc_cond_length)]
         
         self.fc_cond_net = nn.Sequential(*[
-                              nn.Conv2d(feature_channels, fc_cond_length, 3, stride=2, padding=1), # 64 x 64 # 8x8
-                              nn.LeakyReLU(),
-                            #   nn.Conv2d(64, 128, 3, stride=2, padding=1), # 32 x 32
-                            #   nn.LeakyReLU(),
-                            #   nn.Conv2d(128, 128, 3, stride=2, padding=1), # 16 x 16 
-                            #   nn.LeakyReLU(),
-                            #   nn.Conv2d(128, 128, 3, stride=2, padding=1), # 8 x 8
-                            #   nn.LeakyReLU(),
-                            #  nn.Conv2d(128, fc_cond_length, 2, stride=2, padding=1), # 4 x 4
-                               nn.AvgPool2d(4),
-                               nn.BatchNorm2d(fc_cond_length),
+                                nn.LeakyReLU(),
+                                nn.Conv2d(feature_channels, fc_cond_length, 3, stride=16, padding=1), # 64 x 64 # 8x8
+                                # nn.LeakyReLU(),
+                                # nn.Conv2d(64, fc_cond_length, 3, stride=2, padding=1), # 32 x 32
+                                # nn.LeakyReLU(),
+                                # nn.Conv2d(128, fc_cond_length, 3, stride=2, padding=1), # 16 x 16 
+                                # nn.LeakyReLU(),
+                                # nn.Conv2d(128, fc_cond_length, 3, stride=2, padding=1), # 8 x 8
+                                # nn.LeakyReLU(),
+                                # nn.Conv2d(128, fc_cond_length, 2, stride=2, padding=1), # 4 x 4
+                                nn.AvgPool2d(4),
+                                nn.BatchNorm2d(fc_cond_length),
                             ])
 
     def random_orthog(self, n):
@@ -100,10 +101,10 @@ class cINN_builder:
         nodes.append(Node([nodes[-1].out0], Flatten, {}, name='flatten'))
         for k in range(n_blocks_fc):
             nodes.append(Node([nodes[-1].out0], PermuteRandom, {'seed':k}, name=F'permute_{k}'))
-            subnet_kwargs = {'internal_size': None}
+            subnet_kwargs = {'internal_size': fc_cond_length}
             nodes.append(Node([nodes[-1].out0], GLOWCouplingBlock,
                     {'clamp':self.config_training.clamping, 'subnet_constructor':functools.partial(F_fully_connected, **subnet_kwargs)},
-                    conditions=[self.conditions[-1]], name=F'fc_{k}'))
+                    conditions=[], name=F'fc_{k}'))
 
         nodes.append(OutputNode([nodes[-1].out0], name='out'))
 
@@ -202,8 +203,8 @@ class WrappedModel(nn.Module):
                 features, _ = self.feature_network.features(x_l)
                 # features = features[:, :, 1:-1, 1:-1]
 
-        fc_section_cond = self.fc_cond_network(features[-1])
-        cond = [*features, fc_section_cond.reshape((fc_section_cond.shape[0], fc_section_cond.shape[1]))]
+        # fc_section_cond = self.fc_cond_network(features[-1])
+        cond = [*features] #, fc_section_cond.reshape((fc_section_cond.shape[0], fc_section_cond.shape[1]))]
         
         for i, c in enumerate(cond):
             logger.debug(f"cond[{i}].shape: {c.shape}")
@@ -280,7 +281,7 @@ class WrappedModel(nn.Module):
         ab_pred = net_feat.forward_from_features(from_features)
 
         # print(net_cond.training)
-        cond = [*features, net_cond(features[-1]).squeeze()]
+        cond = [*features]#, net_cond(features[-1]).squeeze()]
 
         self.train()
 
