@@ -202,7 +202,8 @@ class WrappedModel(nn.Module):
                 features, _ = self.feature_network.features(x_l)
                 # features = features[:, :, 1:-1, 1:-1]
 
-        cond = [*features, self.fc_cond_network(features[-1]).squeeze()]
+        fc_section_cond = self.fc_cond_network(features[-1])
+        cond = [*features, fc_section_cond.reshape((fc_section_cond.shape[0], fc_section_cond.shape[1]))]
         
         for i, c in enumerate(cond):
             logger.debug(f"cond[{i}].shape: {c.shape}")

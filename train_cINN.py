@@ -26,7 +26,7 @@ from config import config as main_config
 from datasets import SpectrogramsDataset
 from metrics import Metrics
 from noise import GaussianNoise
-from visualization import predict_cinn_example
+from visualization import predict_cinn_example, predict_cinn_example_overfitting_test
 
 # Get logger
 global logger
@@ -99,7 +99,7 @@ def validate(cinn_model, cinn_output_dimensions, config, validation_loader):
 
     return avg_metrics
 
-def train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_training_utilities: model.cINNTrainingUtilities):
+def train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_training_utilities: model.cINNTrainingUtilities, cinn_output_dimensions):
 
     cinn_model.train()
 
@@ -124,21 +124,21 @@ def train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_tra
 
     for i_batch , x in enumerate(training_loader):
 
-        x_l, x_ab_target, cond, x_ab_pred_feature_net = cinn_model.prepare_batch(x) 
+        x_l, x_ab_target, cond, _ = cinn_model.prepare_batch(x) 
 
         # L, ab, _, _ = x  
         
         input = torch.cat((x_l, x_ab_target), dim=1).to(device)
 
-        z, zz, jac = cinn_model(input)
+        _, zz, jac = cinn_model(input)
         
-        cinn_model.eval()
-        
+        z = sample_outputs(config.sampling_temperature, cinn_output_dimensions, input.shape[0])
+        cinn_model.eval()        
         x_ab_pred = cinn_model.reverse_sample(z, cond)
         
         cinn_model.train()
 
-        train_loss, mse, nll = loss(x_ab_pred[0], x_ab_target, zz, jac)
+        train_loss, mse, nll = loss(x_ab_pred[0], x_ab_target.to(device), zz, jac)
         train_loss.backward()
         cinn_training_utilities.optimizer_step()
         
@@ -204,7 +204,7 @@ def train(config=None, load=None):
         for i_epoch in range(-config.pre_low_lr, config.n_epochs):
             logger.info('EPOCH {}:'.format(i_epoch + 1))
             logger.info("       Model training.")
-            avg_loss, step = train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_training_utilities)
+            avg_loss, step = train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_training_utilities, cinn_output_dimensions)
             metrics.log_metrics({'loss': avg_loss}, "TRAIN AVG", step)
 
             logger.info("       Model validation.")
@@ -221,13 +221,17 @@ def train(config=None, load=None):
             # if i_epoch > 0 and (i_epoch % config.checkpoint_save_interval) == 0:
             #     model.save(config.filename + '_checkpoint_%.4i' % (i_epoch * (1-config.checkpoint_save_overwrite)))
 
+        cinn_model.eval()
         logger.info("Generating examples.")
         training_examples = predict_cinn_example(cinn_model, cinn_output_dimensions, training_set, config, desc="Training set example", restore_audio=False)
         wandb.log({"training_examples": [wandb.Image(image) for image in training_examples]})
         print()
         validation_examples = predict_cinn_example(cinn_model, cinn_output_dimensions, validation_set, config, desc="Validation set example", restore_audio=False)
         wandb.log({"validation_examples": [wandb.Image(image) for image in validation_examples]})
-            
+        print()
+        overfitting_examples = predict_cinn_example_overfitting_test(cinn_model, cinn_output_dimensions, training_set, config, desc="Training set overfitting example", restore_audio=False)
+        wandb.log({"overfitting_examples": [wandb.Image(image) for image in overfitting_examples]})
+        
         # Save model
         model_path = None
         if main_config.common.save_model:   
