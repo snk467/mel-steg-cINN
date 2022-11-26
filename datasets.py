@@ -1,17 +1,13 @@
-import random
 from torch.utils.data import Dataset
-from utilities import *
-from normalization import *
+from helpers.utilities import *
+from helpers.normalization import *
 import torch
-import gzip
-import logger as logger_module
-from zipfile import ZipFile
-import zipfile
+import helpers.logger
 import h5py
 import torch.nn.functional as F
         
 # Get logger
-logger = logger_module.get_logger(__name__)
+logger = helpers.logger.get_logger(__name__)
 
 
 class SpectrogramsDataset(Dataset):

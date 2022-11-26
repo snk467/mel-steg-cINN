@@ -3,11 +3,11 @@ import soundfile
 import os
 import random
 import exceptions
-import normalization 
-import logger as logger_module
+import helpers.normalization 
+import helpers.logger
 import torch
 from config import config
-from utilities import *
+from helpers.utilities import *
 from tqdm import tqdm
 import PIL.Image as Image
 import h5py
@@ -20,7 +20,7 @@ class AudioDatasetProcessor:
 
         self.audio_files = get_files(audo_files_directory)
 
-        self.logger = logger_module.get_logger(__name__)
+        self.logger = helpers.logger.get_logger(__name__)
 
     def load_audio_files(self, audio_files):
         loaded_audio = []
@@ -230,7 +230,7 @@ if __name__ == "__main__":
     args = get_args()
 
     if args.debug:
-        logger_module.enable_debug_mode()
+        helpers.logger.enable_debug_mode()
 
     # Get audio processor
     audio_processor = AudioDatasetProcessor(args.input_dir, config.audio_parameters.resolution_128x128)

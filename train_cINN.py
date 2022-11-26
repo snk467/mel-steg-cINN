@@ -1,36 +1,29 @@
 #!/usr/bin/env python
 import argparse
-import gc
 import math
 import os
-import random
-import sys
 from math import ceil
 
 import numpy as np
 import torch
 import torch.nn
-import torch.nn.functional as F
 import torch.optim
 import torchmetrics as torch_metrics
-import tqdm
-from torch.autograd import Variable
-from torch.nn.functional import avg_pool2d  # , interpolate
 
-import colorization_cINN.model as model
-import logger as logger_module
-import utilities
-import visualization
+import cinn.cinn_model as model
 import wandb
 from config import config as main_config
 from datasets import SpectrogramsDataset
-from metrics import Metrics
-from noise import GaussianNoise
-from visualization import predict_cinn_example, predict_cinn_example_overfitting_test
+import helpers.logger
+import helpers.visualization
+import helpers.utilities as utilities
+from helpers.metrics import Metrics
+from helpers.noise import GaussianNoise
+from helpers.visualization import predict_cinn_example, predict_cinn_example_overfitting_test
 
 # Get logger
 global logger
-logger = logger_module.get_logger(__name__)
+logger = helpers.logger.get_logger(__name__)
 
 MODEL_FILE_NAME = "cinn_model.pt"
 

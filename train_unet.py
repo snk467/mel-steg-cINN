@@ -4,18 +4,16 @@ import torch
 import random
 import wandb
 import os
-from metrics import Metrics
-import utilities
 from config import config
-import logger as logger_module
 import argparse
 import torchmetrics as torch_metrics
 from datasets import SpectrogramsDataset 
-from Models.UNET.unet_models import *
-from noise import *
-from PIL import Image   
-from visualization import show_data
-from datetime import datetime
+from unet.unet_models import *
+from helpers.metrics import Metrics
+import helpers.utilities as utilities
+import helpers.logger
+from helpers.noise import *
+from helpers.visualization import show_data
 
 MODEL_FILE_NAME = "unet_model.pt"
 
@@ -217,7 +215,7 @@ def predict_example(model, dataset, desc=None):
 def prepare_globals():    
     # Get logger
     global logger
-    logger = logger_module.get_logger(__name__)
+    logger = helpers.logger.get_logger(__name__)
 
     # Initialize Weights & Biases
     wandb.login(key=config.common.wandb_key)
