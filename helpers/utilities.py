@@ -197,6 +197,14 @@ def _optimizer_to(optimizer, device):
                     subparam.data = subparam.data.to(device)
                     if subparam._grad is not None:
                         subparam._grad.data = subparam._grad.data.to(device)
+                        
+def get_melspectrogram_tensor(melspectrogram: MelSpectrogram):
+    # Load tensor
+    spectrogram_data = torch.from_numpy(melspectrogram.mel_spectrogram_data)
+    # Adjust axies 
+    spectrogram_data = torch.permute(spectrogram_data, (2, 0, 1))[None, :]
+    
+    return spectrogram_data
 
 
 

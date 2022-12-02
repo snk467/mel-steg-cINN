@@ -78,6 +78,25 @@ class Config(Structure):
         sampling_temperature = 1.0     
         early_stopper_min_delta = 0.001   
         early_stopper_patience = 10
+        
+    class steg_cinn_training(Structure):   
+        clamping = 1.5                      # Clamping parameter in the coupling blocks (higher = less stable but more expressive)
+
+        # Training hyperparameters: 
+        lr = 5e-6
+        lr_feature_net = 1e-4
+        n_epochs = 3 #120 * 4
+        n_its_per_epoch = 32 * 8            # In case the epochs should be cut short after n iterations
+        weight_decay = 1e-5
+        betas = (0.9, 0.999)                # concerning adam optimizer
+        init_scale = 0.030                  # initialization std. dev. of weights (0.03 is approx xavier)
+        pre_low_lr = 0                      # for the first n epochs, lower the lr by a factor of 20
+        batch_size = 2
+        dataset_size = 20        
+        pretrain_epochs = 0
+        sampling_temperature = 1.0     
+        early_stopper_min_delta = 0.001   
+        early_stopper_patience = 10
 
     class cinn_management(Structure):
         # Architecture: 
