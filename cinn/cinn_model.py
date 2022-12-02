@@ -168,12 +168,15 @@ class cINN_builder:
 # endregion
 
 class WrappedModel(nn.Module):
-    def __init__(self, feature_network, fc_cond_network, inn):
+    def __init__(self, feature_network, fc_cond_network, inn, device=device):
         super().__init__()
 
         self.feature_network = feature_network
         self.fc_cond_network = fc_cond_network
         self.inn = inn
+        self.device = device
+        self.to(device, var_name="__init__")
+        
 
     def forward(self, x):
 
@@ -189,8 +192,8 @@ class WrappedModel(nn.Module):
 
         logger.debug(f"x_ab shape after interpolate: {x_ab.shape}")
         
-        x_ab.to(device)
-        x_l.to(device)
+        x_ab.to(self.device)
+        x_l.to(self.device)
         
         # x_ab += 1e-3 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
@@ -243,6 +246,13 @@ class WrappedModel(nn.Module):
 
     def istraining(self):
         return self.inn.training, self.feature_network.training
+    
+    def to(self, device, var_name=None):
+        self.device = device
+        self.feature_network = self.feature_network.to(device)
+        self.fc_cond_network = self.fc_cond_network.to(device)
+        self.inn = self.inn.to(device)
+        logger.info(f"WrappedModel({var_name}) device: {self.device}")
 
     def prepare_batch(self, x):
         self.eval()
@@ -252,7 +262,7 @@ class WrappedModel(nn.Module):
         net_cond = self.fc_cond_network
     
         x_l, x_ab, _, _ = x
-        x_l = x_l.to(device)
+        x_l = x_l.to(self.device)
 
         # print("BEFORE")
         # print(x_l.shape)
@@ -292,7 +302,6 @@ class WrappedModel(nn.Module):
 class cINNTrainingUtilities:
     def __init__(self, model: WrappedModel, config: main_config.cinn_training) -> None:
         self.model = model
-        self.model.to(utilities.get_device(verbose=False))
         self.config_training = config
         
         if config is not None:  
@@ -314,11 +323,11 @@ class cINNTrainingUtilities:
                 self.__load_feature_optimizer_and_scheduler()
                 
             
-    def load(self, path):
-        state_dicts = torch.load(path, map_location=utilities.get_device(verbose=False))
+    def load(self, path, device='cpu'):
+        state_dicts = torch.load(path, map_location=device)
         
         self.model.load_state_dict(state_dicts['net'])
-        self.model.to(utilities.get_device(verbose=False))
+        self.model.to(device, var_name="loading")
         try:
             self.optimizer.load_state_dict(state_dicts['opt'])
             

@@ -122,10 +122,8 @@ def train_one_epoch(cinn_model: model.WrappedModel,
     batch_checkpoint = ceil(min(len(training_loader) / 10, config.n_its_per_epoch / 10))
     z_size = sum([x for x in cinn_output_dimensions])
     
-    hiding_cinn_model = copy.deepcopy(cinn_model).to('cpu').float()
-    hiding_cinn_model.inn = hiding_cinn_model.inn.float()
-    hiding_cinn_model.feature_network = hiding_cinn_model.feature_network.float()
-    hiding_cinn_model.fc_cond_network = hiding_cinn_model.fc_cond_network.float()
+    hiding_cinn_model = copy.deepcopy(cinn_model).float()
+    hiding_cinn_model.to('cpu', var_name="hiding_cinn_model")
     hiding_cinn_model.eval()
 
     for i_batch , x in enumerate(training_loader):
@@ -139,15 +137,15 @@ def train_one_epoch(cinn_model: model.WrappedModel,
         logger.info("Reverse sample.")
         x_ab = hiding_cinn_model.reverse_sample(z, cond)[0].detach()
         
-        print(x_l.shape)
-        print(x_ab.shape)
+        # print(x_l.shape)
+        # print(x_ab.shape)
         
         
         logger.info("Melspectrogram <-> audio")
         x_l_p, x_ab_p = melspectrogram_to_audio_and_restore(x_l, x_ab)
         
-        print(x_l_p.shape)
-        print(x_ab_p.shape)
+        # print(x_l_p.shape)
+        # print(x_ab_p.shape)
         
         logger.info("Get z_p.")
         z_p, zz, jac = cinn_model(torch.cat([x_l_p, x_ab_p], dim=1).float().to(device))
@@ -197,11 +195,11 @@ def train(config=None, load=None):
 
         cinn_builder = model.cINN_builder(config)
     
-        feature_net = cinn_builder.get_feature_net().float()
-        fc_cond_net = cinn_builder.get_fc_cond_net().float()
+        feature_net = cinn_builder.get_feature_net()
+        fc_cond_net = cinn_builder.get_fc_cond_net()
         cinn, cinn_output_dimensions = cinn_builder.get_cinn()
                 
-        cinn_model = model.WrappedModel(feature_net, fc_cond_net, cinn.float())
+        cinn_model = model.WrappedModel(feature_net, fc_cond_net, cinn, device=device).float()
         cinn_training_utilities = model.cINNTrainingUtilities(cinn_model, config)
         
         
@@ -209,7 +207,7 @@ def train(config=None, load=None):
         if load is not None:
             restored_model = wandb.restore(CINN_MODEL_FILE_NAME, run_path=load)# "lavanyashukla/save_and_restore/10pr4joa"
             logger.info(f"Loading model: {load} from: {restored_model.name}")
-            cinn_training_utilities.load(restored_model.name)
+            cinn_training_utilities.load(restored_model.name, device=device)
             os.remove(restored_model.name)
             cinn_model = cinn_training_utilities.model
 
@@ -271,8 +269,7 @@ def melspectrogram_to_audio_and_restore(x_l: torch.Tensor, x_ab: torch.Tensor):
     batch_size = x_l.shape[0]
     colormap = LUT.Colormap.from_colormap("parula_norm_lab")
     
-    x_l_p = None
-    x_ab_p = None
+    melspectrograms_p = []
     
     for i in range(batch_size):
         L_channel = x_l[i]
@@ -287,27 +284,11 @@ def melspectrogram_to_audio_and_restore(x_l: torch.Tensor, x_ab: torch.Tensor):
         
         audio = melspectrogram.get_audio()        
         melspectrogram_p = audio.get_color_mel_spectrogram(True, colormap)
+        melspectrograms_p.append(torch.from_numpy(melspectrogram_p.color_mel_spectrogram_data).permute((2, 0, 1))[None, :])
         
-        melspectrogram_p = utilities.get_melspectrogram_tensor(melspectrogram_p)
-        
-        logger.debug(f"melspectrogram_p.shape {melspectrogram_p.shape}")
-        
-        if x_l_p is None:
-            x_l_p = melspectrogram_p[0, 0, :, :]
-            x_l_p = x_l_p[None, None, :]
-        else:
-            x_l_p = torch.cat([x_l_p, melspectrogram_p[0, 0, :, :][None, None, :]])
+    melspectrograms_p = torch.cat(melspectrograms_p)
             
-        logger.debug(f"x_l_p.shape {x_l_p.shape}")
-            
-        if x_ab_p is None:
-            x_ab_p = melspectrogram_p[:, 1:, :, :]
-        else:
-            x_ab_p = torch.cat([x_ab_p, melspectrogram_p[:, 1:, :, :]])
-            
-        logger.debug(f"x_ab_p.shape {x_ab_p.shape}")
-            
-    return x_l_p, x_ab_p
+    return melspectrograms_p[:, 0:1, :], melspectrograms_p[:, 1:, :]
         
     
 
