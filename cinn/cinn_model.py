@@ -292,7 +292,6 @@ class WrappedModel(nn.Module):
 class cINNTrainingUtilities:
     def __init__(self, model: WrappedModel, config: main_config.cinn_training) -> None:
         self.model = model
-        self.model.to(utilities.get_device(verbose=False))
         self.config_training = config
         
         if config is not None:  

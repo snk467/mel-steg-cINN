@@ -1,6 +1,9 @@
 import os
+import bitarray
 import librosa
 import random
+
+import wandb
 import helpers.logger
 import helpers.normalization as normalization
 import numpy as np
@@ -10,6 +13,8 @@ import torch
 from pynvml import *
 from hurry.filesize import size
 import gc
+import cinn.cinn_model
+import mel_steg_cinn_config
 
 logger = helpers.logger.get_logger(__name__)
 
@@ -201,3 +206,149 @@ def _optimizer_to(optimizer, device):
 
 
 
+class MelStegCinn:
+    def __init__(self, config: mel_steg_cinn_config.Config):
+        self.config = config
+        self.cinn_utilities = None
+        self.cinn_z_dimensions = None
+        pass
+    
+    def load_cinn(self):
+        cinn_builder = cinn.cinn_model.cINN_builder(self.config.cinnConfig)
+        feature_net = cinn_builder.get_feature_net().double()
+        fc_cond_net = cinn_builder.get_fc_cond_net().double()
+        cinn_net, self.cinn_z_dimensions = cinn_builder.get_cinn()
+        cinn_model = cinn.cinn_model.WrappedModel(feature_net, fc_cond_net, cinn_net.double())
+        self.cinn_utilities = cinn.cinn_model.cINNTrainingUtilities(cinn_model, self.config.cinnConfig)
+        self.cinn_utilities.load(self.config.model_path) 
+        
+        return self.cinn_utilities.model
+        
+    def load_audio(self, path: str):
+        return Audio(load_audio(path)[0], self.config.audio_parameters)
+    
+    def encode(self, message: str):
+        bin_message = bitarray.bitarray()
+        bin_message.frombytes((message + self.config.end_of_message_string).encode('ascii'))
+        
+        desired_size =  sum([x for x in self.cinn_z_dimensions])
+        
+        z = []
+        
+        for bit in bin_message:
+            sample = np.random.normal()
+            if bit == 0:
+                while not (sample < -np.abs(self.config.alpha)):
+                    sample = np.random.normal() 
+            else:
+                while not (sample > np.abs(self.config.alpha)):
+                    sample = np.random.normal()
+                    
+            z.append(sample) 
+            
+            if len(z) == desired_size:
+                break
+            
+        if len(z) != desired_size:
+            z.extend(np.random.normal(size=desired_size-len(z)))
+            
+        logger.debug(f"Z length: {len(z)}")
+        
+        # plt.hist(z, bins=100)
+        # plt.show()
+        
+        z = torch.from_numpy(np.array(z))
+        z = list(z.split(self.cinn_z_dimensions))
+        
+        logger.debug(f"Z length after split: {len(z)}")
+        for i in range(len(z)):
+            logger.debug(f"z[{i}].shape: {z[i].shape}")
+            z[i] = z[i][None, :]
+            logger.debug(f"z[{i}].shape(corrected): {z[i].shape}")
+            
+        logger.info(f"Encoded message: {message}")
+        
+        return z
+    
+    def decode(self, z: list[torch.Tensor]):
+        
+        logger.debug(f"Z input length: {len(z)}")
+        z = torch.cat(z, dim=1).squeeze().detach().numpy()
+        
+        # plt.hist(z, bins=100)
+        # plt.show()
+        
+        logger.debug(f"Z concatenated shape: {z.shape}")
+        
+        bin_message = []
+        
+        for sample in z:
+            if sample < -np.abs(self.config.alpha):
+                bin_message.append(False)
+            elif sample > np.abs(self.config.alpha):
+                bin_message.append(True)
+            
+        message_with_noise = bitarray.bitarray(bin_message).tobytes().decode('ascii', errors='replace')
+        message = message_with_noise.split(self.config.end_of_message_string)[0]
+        logger.info(f"Decoded message: {message[:100]}")        
+    
+    def get_L_channel(self, melspectrogram: MelSpectrogram):
+        # Load tensor
+        L = torch.from_numpy(melspectrogram.mel_spectrogram_data[:, :, 0])
+        # Adjust axies 
+        L = torch.reshape(L, (1, 1, L.shape[0], L.shape[1]))
+        return L
+    
+    def get_melspectrogram_tensor(self, melspectrogram: MelSpectrogram):
+        # Load tensor
+        spectrogram_data = torch.from_numpy(melspectrogram.mel_spectrogram_data)
+        # Adjust axies 
+        spectrogram_data = torch.permute(spectrogram_data, (2, 0, 1))[None, :]
+        
+        return spectrogram_data
+        
+    
+    def get_cond(self, L_channel: torch.Tensor):
+        with torch.no_grad():
+            features, _ = self.cinn_utilities.model.feature_network.features(L_channel)
+            return [*features]
+       
+def get_cinn_model(cinn_training_config, filename=None, run_path=None, device='cpu'):
+    cinn_builder = cinn.cinn_model.cINN_builder(cinn_training_config)
+    
+    feature_net = cinn_builder.get_feature_net()
+    fc_cond_net = cinn_builder.get_fc_cond_net()
+    cinn_net, cinn_output_dimensions = cinn_builder.get_cinn()
+            
+    cinn_model = cinn.cinn_model.WrappedModel(feature_net, fc_cond_net, cinn_net).to(device)
+    cinn_utilities = cinn.cinn_model.cINNTrainingUtilities(cinn_model.float(), cinn_training_config) 
+    
+    if run_path is not None:
+        restored_model = wandb.restore(filename, run_path=run_path)
+        cinn_utilities.load(restored_model.name) 
+        
+    return cinn_utilities, cinn_output_dimensions 
+             
+    
+def load_audio(path: str, audio_parameters):
+    return Audio(load_audio(path)[0], audio_parameters)
+
+def get_L_channel(melspectrogram: MelSpectrogram):
+    # Load tensor
+    L = torch.from_numpy(melspectrogram.mel_spectrogram_data[:, :, 0])
+    # Adjust axies 
+    L = torch.reshape(L, (1, 1, L.shape[0], L.shape[1]))
+    return L
+
+def get_melspectrogram_tensor(melspectrogram: MelSpectrogram):
+    # Load tensor
+    spectrogram_data = torch.from_numpy(melspectrogram.mel_spectrogram_data)
+    # Adjust axies 
+    spectrogram_data = torch.permute(spectrogram_data, (2, 0, 1))[None, :]
+    
+    return spectrogram_data
+    
+def get_cond(L_channel: torch.Tensor, cinn_utilities):
+    with torch.no_grad():
+        features, _ = cinn_utilities.model.feature_network.features(L_channel)
+        return [*features]
