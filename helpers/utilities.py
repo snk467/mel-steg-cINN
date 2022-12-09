@@ -270,7 +270,7 @@ class MelStegCinn:
         
         return z
     
-    def decode(self, z: list[torch.Tensor]):
+    def decode(self, z):
         
         logger.debug(f"Z input length: {len(z)}")
         z = torch.cat(z, dim=1).squeeze().detach().numpy()
@@ -325,7 +325,7 @@ def get_cinn_model(cinn_training_config, filename=None, run_path=None, device='c
     
     if run_path is not None:
         restored_model = wandb.restore(filename, run_path=run_path)
-        cinn_utilities.load(restored_model.name) 
+        cinn_utilities.load(restored_model.name, device=device) 
         
     return cinn_utilities, cinn_output_dimensions 
              

@@ -189,9 +189,6 @@ class WrappedModel(nn.Module):
 
         logger.debug(f"x_ab shape after interpolate: {x_ab.shape}")
         
-        x_ab.to(device)
-        x_l.to(device)
-        
         # x_ab += 1e-3 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
         if main_config.cinn_management.end_to_end:
@@ -243,6 +240,12 @@ class WrappedModel(nn.Module):
 
     def istraining(self):
         return self.inn.training, self.feature_network.training
+    
+    # def to(self, device):
+    #    self.feature_network = self.feature_network.to(device)
+    #    self.fc_cond_network = self.fc_cond_network.to(device)
+    #    self.inn = self.inn.to(device)     
+    #    return self
 
     def prepare_batch(self, x):
         self.eval()
@@ -313,11 +316,11 @@ class cINNTrainingUtilities:
                 self.__load_feature_optimizer_and_scheduler()
                 
             
-    def load(self, path):
-        state_dicts = torch.load(path, map_location=utilities.get_device(verbose=False))
+    def load(self, path, device):
+        state_dicts = torch.load(path, map_location=device)
         
         self.model.load_state_dict(state_dicts['net'])
-        self.model.to(utilities.get_device(verbose=False))
+        self.model.to(device)
         try:
             self.optimizer.load_state_dict(state_dicts['opt'])
             

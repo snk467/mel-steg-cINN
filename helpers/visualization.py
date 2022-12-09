@@ -129,6 +129,7 @@ def __sample_outputs(sigma, out_shape, batch_size):
     
 def predict_cinn_example(cinn_model, cinn_output_dimensions,dataset, config, desc=None, restore_audio=False):
     example_id = random.randint(0, len(dataset) - 1)
+    cinn_model.to(utilities.get_device(verbose=False))
     input, target, filename, clear_input  = dataset[example_id]
     sample_z = __sample_outputs(config.sampling_temperature, cinn_output_dimensions, 1)
     x_l, x_ab, cond, ab_pred = cinn_model.prepare_batch((input, target, filename, clear_input))
@@ -146,6 +147,8 @@ def predict_cinn_example_overfitting_test(cinn_model, cinn_output_dimensions,dat
     example_id = random.randint(0, len(dataset) - 1)
     input, target, filename, clear_input  = dataset[example_id]
 
+    cinn_model.to(utilities.get_device(verbose=False))
+    
     # sample_z = __sample_outputs(config.sampling_temperature, cinn_output_dimensions, 1)
     x_l, x_ab, cond, ab_pred = cinn_model.prepare_batch((input, target, filename, clear_input))
     
