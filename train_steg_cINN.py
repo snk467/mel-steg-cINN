@@ -63,28 +63,68 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
 
     l = torch.mean(neg_log_likeli) / tot_output_size
     
-    return torch.exp(l) + mse_z + mse_ab, mse_z.item(), mse_ab.item(), l.item()
+    return 0.25 * torch.exp(l) + 0.5 * mse_z + 0.25 * mse_ab, mse_z.item(), mse_ab.item(), l.item()
 
 def sample_outputs(sigma, out_shape, batch_size, device=utilities.get_device(verbose=False)):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
 
+def sample_z(out_shapes, batch_size, alpha=None, device=utilities.get_device(verbose=False)):
+    
+    samples = []
+    
+    for out_shape in out_shapes:
+        sample = torch.normal(mean=0.0, std=1.0, size=(batch_size, out_shape), device=device)
+        
+        if alpha is not None: 
+            def get_value_out_of_range():
+                value = 0.0
+                while np.abs(value) <= alpha:
+                    value = np.random.normal(loc=0.0, scale=1.0)
+                return value
+            
+            torch.where(torch.abs(sample) > alpha, sample, get_value_out_of_range())
+            
+        samples.append(sample)
+        
+    return samples
+
 def tuple_of_tensors_to_tensor(tuple_of_tensors):
     return  torch.stack(list(tuple_of_tensors), dim=0)
 
-def validate(cinn_model, cinn_output_dimensions, config, validation_loader):
+def validate(revealing_cinn_model_utilities, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, config, validation_loader, alpha = None):
 
-    cinn_model.eval()
+    revealing_model = revealing_cinn_model_utilities.model
+    revealing_model.eval()
+    
+    hiding_model = hiding_cinn_model_utilities.model
+    hiding_model.eval()
 
     avg_metrics = None
 
     for i, vdata in enumerate(validation_loader):
-        x_l, x_ab_target, cond, ab_pred = cinn_model.prepare_batch(vdata)           
+        x_l, _, _, _ = vdata
+        x_l = x_l.to('cpu')    
+            
+        z = sample_z(hiding_cinn_output_dimensions, config.batch_size, alpha=0.1, device='cpu')
+        
+        cond = utilities.get_cond(x_l, hiding_cinn_model_utilities) 
+        
+        x_ab_with_message = hiding_model.reverse_sample(z, cond)
+        
+        compressed_melspectrograms = compress_melspectrograms(config, x_l, x_ab_with_message)
+            
+        input_melspectrogram = torch.cat(compressed_melspectrograms).float().to(device)
+        
+        z_pred, _, _ = revealing_model(input_melspectrogram)
+        
+        z_pred = torch.cat(z_pred, dim=1)
+        z = torch.cat(z, dim=1)
+        
+        if alpha is not None:
+            z_pred = torch.where(torch.abs(z_pred) > alpha, z_pred, 0.)
+            z = torch.where(torch.abs(z) > alpha, z, 0.)
 
-        z = sample_outputs(config.sampling_temperature, cinn_output_dimensions, vdata[0].shape[0])
-
-        x_ab_output = cinn_model.reverse_sample(z, cond)
-
-        _, batch_metrics = metrics.gather_batch_metrics(x_ab_output[0], x_ab_target.to(device))
+        _, batch_metrics = metrics.gather_batch_metrics(z_pred, z.to(device))
 
         avg_metrics = metrics.add_metrics(avg_metrics, batch_metrics)                
     
@@ -124,40 +164,21 @@ def train_one_epoch(training_loader,
 
     avg_loss = []
     batch_checkpoint = ceil(min(len(training_loader) / 10, config.n_its_per_epoch / 10))
-    colormap = LUT.Colormap.from_colormap("parula_norm_lab")
 
     for i_batch , x in enumerate(training_loader):
         
         x_l, _, _, _ = x
-        x_l = x_l.to('cpu')
-        # input = torch.cat((x_l, x_ab_target), dim=1).to(device)
-
-        # _, zz, jac = cinn_model(input)
-        
-        z = sample_outputs(config.sampling_temperature, hiding_cinn_output_dimensions, config.batch_size, device='cpu')
-        cond = utilities.get_cond(x_l, hiding_cinn_model_utilities)
-        # cinn_model.eval()    
+        x_l = x_l.to('cpu')    
             
+        z = sample_z(hiding_cinn_output_dimensions, config.batch_size, alpha=0.1, device='cpu')
+        
+        cond = utilities.get_cond(x_l, hiding_cinn_model_utilities) 
+        
         x_ab_with_message = hiding_model.reverse_sample(z, cond)
         
-        input_melspectrograms = []        
-        for i in range(config.batch_size):        
+        compressed_melspectrograms = compress_melspectrograms(config, x_l, x_ab_with_message)
             
-            generated_melspectrogram = utilities.MelSpectrogram.from_color(torch.cat([x_l[i], x_ab_with_message[0][i]]).
-                                                                            squeeze().
-                                                                            permute((1,2,0)).
-                                                                            detach().
-                                                                            numpy(),
-                                                                        normalized=True,
-                                                                        colormap=colormap,
-                                                                        config=main_config.audio_parameters.resolution_512x512)
-            # color <-> index
-            indexes = colormap.get_indexes_from_colors(generated_melspectrogram.mel_spectrogram_data)
-            generated_melspectrogram.mel_spectrogram_data = colormap.get_colors_from_indexes(indexes)
-    
-            input_melspectrograms.append(utilities.get_melspectrogram_tensor(generated_melspectrogram))
-            
-        input_melspectrogram = torch.cat(input_melspectrograms).float().to(device)
+        input_melspectrogram = torch.cat(compressed_melspectrograms).float().to(device)
         
         z_pred, zz, jac = revealing_model(input_melspectrogram)
         
@@ -182,6 +203,25 @@ def train_one_epoch(training_loader,
             break
 
     return np.mean(avg_loss), step
+
+def compress_melspectrograms(config, x_l, x_ab_with_message):
+    colormap = LUT.Colormap.from_colormap("parula_norm_lab")
+    input_melspectrograms = []        
+    for i in range(config.batch_size):        
+        generated_melspectrogram = utilities.MelSpectrogram.from_color(torch.cat([x_l[i], x_ab_with_message[0][i]]).
+                                                                            squeeze().
+                                                                            permute((1,2,0)).
+                                                                            detach().
+                                                                            numpy(),
+                                                                        normalized=True,
+                                                                        colormap=colormap,
+                                                                        config=main_config.audio_parameters.resolution_512x512)
+            # color <-> index
+        indexes = colormap.get_indexes_from_colors(generated_melspectrogram.mel_spectrogram_data)
+        generated_melspectrogram.mel_spectrogram_data = colormap.get_colors_from_indexes(indexes)
+    
+        input_melspectrograms.append(utilities.get_melspectrogram_tensor(generated_melspectrogram))
+    return input_melspectrograms
 
 
 def train(config=None, load=None):  
@@ -236,7 +276,7 @@ def train(config=None, load=None):
             metrics.log_metrics({'loss': avg_loss}, "TRAIN AVG", step)
 
             logger.info("       Model validation.")
-            avg_metrics = validate(revealing_cinn_model, revealing_cinn_output_dimensions, config, validation_loader)
+            avg_metrics = validate(revealing_cinn_model_utilities, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, config, validation_loader, alpha=0.1)
             # Report
             metrics.log_metrics(avg_metrics, "VALID AVG", step)
 
