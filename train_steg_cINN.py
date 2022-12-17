@@ -102,27 +102,11 @@ def validate(revealing_cinn_model_utilities, hiding_cinn_model_utilities, hiding
     avg_metrics = None
 
     for i, vdata in enumerate(validation_loader):
-        x_l, _, _, _ = vdata
-        x_l = x_l.to('cpu')    
-            
-        z = sample_z(hiding_cinn_output_dimensions, config.batch_size, alpha=0.1, device='cpu')
         
-        cond = utilities.get_cond(x_l, hiding_cinn_model_utilities) 
-        
-        x_ab_with_message = hiding_model.reverse_sample(z, cond)
-        
-        compressed_melspectrograms = compress_melspectrograms(config, x_l, x_ab_with_message)
-            
-        input_melspectrogram = torch.cat(compressed_melspectrograms).float().to(device)
-        
-        z_pred, _, _ = revealing_model(input_melspectrogram)
+        z, _, _, _, z_pred, _, _ = process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, revealing_model, hiding_model, vdata)
         
         z_pred = torch.cat(z_pred, dim=1)
         z = torch.cat(z, dim=1)
-        
-        if alpha is not None:
-            z_pred = torch.where(torch.abs(z_pred) > alpha, z_pred, 0.)
-            z = torch.where(torch.abs(z) > alpha, z, 0.)
 
         _, batch_metrics = metrics.gather_batch_metrics(z_pred, z.to(device))
 
@@ -167,20 +151,7 @@ def train_one_epoch(training_loader,
 
     for i_batch , x in enumerate(training_loader):
         
-        x_l, _, _, _ = x
-        x_l = x_l.to('cpu')    
-            
-        z = sample_z(hiding_cinn_output_dimensions, config.batch_size, alpha=0.1, device='cpu')
-        
-        cond = utilities.get_cond(x_l, hiding_cinn_model_utilities) 
-        
-        x_ab_with_message = hiding_model.reverse_sample(z, cond)
-        
-        compressed_melspectrograms = compress_melspectrograms(config, x_l, x_ab_with_message)
-            
-        input_melspectrogram = torch.cat(compressed_melspectrograms).float().to(device)
-        
-        z_pred, zz, jac = revealing_model(input_melspectrogram)
+        z, x_ab_with_message, x_ab_target, input_melspectrogram, z_pred, zz, jac = process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, revealing_model, hiding_model, x)
         
         revealing_model.eval()      
           
@@ -188,7 +159,7 @@ def train_one_epoch(training_loader,
         
         revealing_model.train()
 
-        train_loss, mse_z, mse_ab, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1).to(device), x_ab_pred[0], x_ab_with_message[0].to(device), zz, jac)
+        train_loss, mse_z, mse_ab, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1).to(device), x_ab_pred[0], x_ab_target.to(device), zz, jac)
         train_loss.backward()
         revealing_cinn_model_utilities.optimizer_step()
         
@@ -203,6 +174,23 @@ def train_one_epoch(training_loader,
             break
 
     return np.mean(avg_loss), step
+
+def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, revealing_model, hiding_model, x):
+    x_l, x_ab_target, _, _ = x
+    x_l = x_l.to('cpu')    
+            
+    z = sample_z(hiding_cinn_output_dimensions, config.batch_size, alpha=0.1, device='cpu')
+        
+    cond = utilities.get_cond(x_l, hiding_cinn_model_utilities) 
+        
+    x_ab_with_message = hiding_model.reverse_sample(z, cond)
+        
+    compressed_melspectrograms = compress_melspectrograms(config, x_l, x_ab_with_message)
+            
+    input_melspectrogram = torch.cat(compressed_melspectrograms).float().to(device)
+        
+    z_pred, zz, jac = revealing_model(input_melspectrogram)
+    return z,x_ab_with_message,x_ab_target,input_melspectrogram,z_pred,zz,jac
 
 def compress_melspectrograms(config, x_l, x_ab_with_message):
     colormap = LUT.Colormap.from_colormap("parula_norm_lab")
