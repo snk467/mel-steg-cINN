@@ -82,7 +82,7 @@ def sample_z(out_shapes, batch_size, alpha=None, device=utilities.get_device(ver
                     value = np.random.normal(loc=0.0, scale=1.0)
                 return value
             
-            torch.where(torch.abs(sample) > alpha, sample, get_value_out_of_range())
+            sample = torch.where(torch.abs(sample) > torch.tensor(alpha), sample, torch.tensor(get_value_out_of_range()))
             
         samples.append(sample)
         
@@ -101,7 +101,9 @@ def validate(revealing_cinn_model_utilities, hiding_cinn_model_utilities, hiding
 
     avg_metrics = None
 
-    for i, vdata in enumerate(validation_loader):
+    for i, vdata in enumerate(validation_loader):        
+        if (i + 1) % 10 == 0:
+            break
         
         z, _, _, _, z_pred, _, _ = process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, revealing_model, hiding_model, vdata)
         
@@ -264,7 +266,7 @@ def train(config=None, load=None):
             metrics.log_metrics({'loss': avg_loss}, "TRAIN AVG", step)
 
             logger.info("       Model validation.")
-            avg_metrics = validate(revealing_cinn_model_utilities, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, config, validation_loader, alpha=0.1)
+            avg_metrics = validate(revealing_cinn_model_utilities, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, config, validation_loader)
             # Report
             metrics.log_metrics(avg_metrics, "VALID AVG", step)
 
