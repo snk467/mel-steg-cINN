@@ -193,7 +193,7 @@ def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimens
     return z,x_ab_with_message,x_ab_target,input_melspectrogram,z_pred,zz,jac
 
 def compress_melspectrograms(config, x_l, x_ab_with_message):    
-    colormap = LUT.ColormapTorch.from_colormap("parula_norm_lab")
+    colormap = LUT.ColormapTorch.from_colormap("parula_norm_lab").to(device)
     
     indexes = colormap.get_indexes_from_colors(torch.cat([x_l, x_ab_with_message], dim=1).to(device))
     return colormap.get_colors_from_indexes(indexes)
