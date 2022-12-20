@@ -63,7 +63,7 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
 
     l = torch.mean(neg_log_likeli) / tot_output_size
     
-    return 0.25 * torch.exp(l) + 0.5 * mse_z + 0.25 * mse_ab, mse_z.item(), mse_ab.item(), l.item()
+    return 0.1 * torch.exp(l) + mse_z + mse_ab, mse_z.item(), mse_ab.item(), l.item()
 
 def sample_outputs(sigma, out_shape, batch_size, device=utilities.get_device(verbose=False)):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
@@ -187,31 +187,16 @@ def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimens
         
     x_ab_with_message = hiding_model.reverse_sample(z, cond)
         
-    compressed_melspectrograms = compress_melspectrograms(config, x_l, x_ab_with_message)
-            
-    input_melspectrogram = torch.cat(compressed_melspectrograms).float().to(device)
+    input_melspectrogram = compress_melspectrograms(config, x_l, x_ab_with_message[0]).float()
         
     z_pred, zz, jac = revealing_model(input_melspectrogram)
     return z,x_ab_with_message,x_ab_target,input_melspectrogram,z_pred,zz,jac
 
-def compress_melspectrograms(config, x_l, x_ab_with_message):
-    colormap = LUT.Colormap.from_colormap("parula_norm_lab")
-    input_melspectrograms = []        
-    for i in range(config.batch_size):        
-        generated_melspectrogram = utilities.MelSpectrogram.from_color(torch.cat([x_l[i], x_ab_with_message[0][i]]).
-                                                                            squeeze().
-                                                                            permute((1,2,0)).
-                                                                            detach().
-                                                                            numpy(),
-                                                                        normalized=True,
-                                                                        colormap=colormap,
-                                                                        config=main_config.audio_parameters.resolution_512x512)
-            # color <-> index
-        indexes = colormap.get_indexes_from_colors(generated_melspectrogram.mel_spectrogram_data)
-        generated_melspectrogram.mel_spectrogram_data = colormap.get_colors_from_indexes(indexes)
+def compress_melspectrograms(config, x_l, x_ab_with_message):    
+    colormap = LUT.ColormapTorch.from_colormap("parula_norm_lab")
     
-        input_melspectrograms.append(utilities.get_melspectrogram_tensor(generated_melspectrogram))
-    return input_melspectrograms
+    indexes = colormap.get_indexes_from_colors(torch.cat([x_l, x_ab_with_message], dim=1).to(device))
+    return colormap.get_colors_from_indexes(indexes)
 
 
 def train(config=None, load=None):  
