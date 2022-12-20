@@ -1670,6 +1670,11 @@ class ColormapTorch:
     @classmethod
     def from_colors_list(cls, colors):
         return cls(colors)
+    
+    def to(self, device):
+        self.colors = self.colors.to(device)
+        self.values = self.values.to(device)
+        return self
 
     def get_colormaps(self):
         return self.__colormaps
