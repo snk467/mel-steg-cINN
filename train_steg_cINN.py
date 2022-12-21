@@ -72,17 +72,15 @@ def prepare_training():
     global tot_output_size
     tot_output_size = 2 * main_config.cinn_management.img_dims[0] * main_config.cinn_management.img_dims[1]
 
-def loss(z_pred, z, ab_pred, ab_target, zz, jac):
+def loss(z_pred, z, zz, jac):
     
     mse_z = mse_loss(z_pred, z)
-    
-    mse_ab = mse_loss(ab_pred, ab_target)
     
     neg_log_likeli = 0.5 * zz - jac
 
     l = torch.mean(neg_log_likeli) / tot_output_size
     
-    return 0.1 * torch.exp(l) + mse_z + mse_ab, mse_z.item(), mse_ab.item(), l.item()
+    return 0.1 * torch.exp(l) + 0.9 * mse_z, mse_z.item(), l.item()
 
 def sample_outputs(sigma, out_shape, batch_size, device=utilities.get_device(verbose=False)):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
@@ -174,20 +172,20 @@ def train_one_epoch(training_loader,
         
         z, x_ab_with_message, x_ab_target, input_melspectrogram, z_pred, zz, jac = process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, revealing_model, hiding_model, x)
         
-        revealing_model.eval()      
+        # revealing_model.eval()      
           
-        x_ab_pred = revealing_model.reverse_sample(z_pred, utilities.get_cond(input_melspectrogram[:, 0:1, :, :], revealing_cinn_model_utilities))
+        # x_ab_pred = revealing_model.reverse_sample(z_pred, utilities.get_cond(input_melspectrogram[:, 0:1, :, :], revealing_cinn_model_utilities))
         
-        revealing_model.train()
+        # revealing_model.train()
 
-        train_loss, mse_z, mse_ab, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1).to(device), x_ab_pred[0], x_ab_target.to(device), zz, jac)
+        train_loss, mse_z, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1).to(device), zz, jac)
         train_loss.backward()
         revealing_cinn_model_utilities.optimizer_step()
         
         # Report
         if i_batch % batch_checkpoint == (batch_checkpoint - 1):
             step +=1
-            metrics.log_metrics({'batch_loss': train_loss.item(), 'mse_z': mse_z, 'mse_ab': mse_ab, 'nll': math.exp(nll)}, "train", step, i_batch)
+            metrics.log_metrics({'batch_loss': train_loss.item(), 'mse_z': mse_z, 'nll': math.exp(nll)}, "train", step, i_batch)
 
         avg_loss.append(train_loss.item())
 
