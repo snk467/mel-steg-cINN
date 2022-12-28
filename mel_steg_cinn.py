@@ -114,8 +114,11 @@ def demo(args):
     generated_melspectrogram.mel_spectrogram_data = colormap.get_colors_from_indexes(indexes)
     
     input_melspectrogram = melStegCinn.get_melspectrogram_tensor(generated_melspectrogram)
-    z, _, _ = cinn_model(input_melspectrogram)
-    melStegCinn.decode(z)
+    z_decode, _, _ = cinn_model(input_melspectrogram)
+    
+    print("Decode accuracy:", torch.sum(torch.sign(torch.cat(z, dim=1)) == torch.sign(torch.cat(z_decode, dim=1))) / torch.cat(z,dim=1).numel())
+    
+    melStegCinn.decode(z_decode)
     
     
 # region W budowie

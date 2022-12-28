@@ -220,7 +220,7 @@ class MelStegCinn:
         cinn_net, self.cinn_z_dimensions = cinn_builder.get_cinn()
         cinn_model = cinn.cinn_model.WrappedModel(feature_net, fc_cond_net, cinn_net.double())
         self.cinn_utilities = cinn.cinn_model.cINNTrainingUtilities(cinn_model, self.config.cinnConfig)
-        self.cinn_utilities.load(self.config.model_path) 
+        self.cinn_utilities.load(self.config.model_path, device='cpu') 
         
         return self.cinn_utilities.model
         
@@ -330,8 +330,8 @@ def get_cinn_model(cinn_training_config, filename=None, run_path=None, device='c
     return cinn_utilities, cinn_output_dimensions 
              
     
-def load_audio(path: str, audio_parameters):
-    return Audio(load_audio(path)[0], audio_parameters)
+# def load_audio(path: str, audio_parameters):
+#     return Audio(load_audio(path)[0], audio_parameters)
 
 def get_L_channel(melspectrogram: MelSpectrogram):
     # Load tensor
