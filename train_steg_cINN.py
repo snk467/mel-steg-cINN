@@ -240,7 +240,7 @@ def train(config=None, load=None):
 
         early_stopper = model.EarlyStopper(patience=config.early_stopper_patience, min_delta=config.early_stopper_min_delta)
 
-        revealing_cinn_model_utilities, revealing_cinn_output_dimensions = utilities.get_cinn_model(config, device=device)
+        revealing_cinn_model_utilities, revealing_cinn_output_dimensions = utilities.get_cinn_model(config, MODEL_FILE_NAME, load, device=device)
         
         revealing_cinn_model = revealing_cinn_model_utilities.model
         
@@ -278,7 +278,7 @@ def train(config=None, load=None):
             if early_stopper.early_stop(avg_metrics["MSE"]):
                 break
             
-            # hiding_cinn_model_utilities.model.load_state_dict(cinn_model_utilities.model.state_dict())
+            # hiding_cinn_model_utilities.model.load_state_dict(revealing_cinn_model_utilities.model.state_dict())
 
             # if i_epoch > 0 and (i_epoch % config.checkpoint_save_interval) == 0:
             #     model.save(config.filename + '_checkpoint_%.4i' % (i_epoch * (1-config.checkpoint_save_overwrite)))
