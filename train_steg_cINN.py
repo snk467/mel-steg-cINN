@@ -80,7 +80,7 @@ def loss(z_pred, z, zz, jac):
 
     l = torch.mean(neg_log_likeli) / tot_output_size
     
-    return 0.1 * torch.exp(l) + 0.9 * mse_z, mse_z.item(), l.item()
+    return 0.1 * l + 0.9 * mse_z, mse_z.item(), l.item()
 
 def sample_outputs(sigma, out_shape, batch_size, device=utilities.get_device(verbose=False)):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
@@ -95,7 +95,7 @@ def sample_z(out_shapes, batch_size, alpha=None, device=utilities.get_device(ver
         if alpha is not None: 
             def get_value_out_of_range():
                 value = 0.0
-                while np.abs(value) <= alpha:
+                while np.abs(value) < alpha:
                     value = np.random.normal(loc=0.0, scale=1.0)
                 return value
             
@@ -185,7 +185,7 @@ def train_one_epoch(training_loader,
         # Report
         if i_batch % batch_checkpoint == (batch_checkpoint - 1):
             step +=1
-            metrics.log_metrics({'batch_loss': train_loss.item(), 'mse_z': mse_z, 'nll': math.exp(nll)}, "train", step, i_batch)
+            metrics.log_metrics({'batch_loss': train_loss.item(), 'mse_z': mse_z, 'nll': nll}, "train", step, i_batch)
 
         avg_loss.append(train_loss.item())
 
@@ -198,7 +198,7 @@ def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimens
     x_l, x_ab_target, _, _ = x
     x_l = x_l.to('cpu')    
             
-    z = sample_z(hiding_cinn_output_dimensions, config.batch_size, alpha=0.1, device='cpu')
+    z = sample_z(hiding_cinn_output_dimensions, config.batch_size, device='cpu')
         
     cond = utilities.get_cond(x_l, hiding_cinn_model_utilities) 
         
