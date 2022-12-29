@@ -1691,7 +1691,7 @@ class ColormapTorch:
         assert len(indexes.shape) == 4
         assert indexes.shape[1] == 1
 
-        return self.colors[indexes].reshape(indexes.shape[0], 3, *indexes.shape[2:])
+        return self.colors[indexes].squeeze().permute((0,3,1,2))
 
     def get_indexes_from_values(self, values: torch.Tensor):
         assert len(values.shape) == 4
@@ -1703,7 +1703,7 @@ class ColormapTorch:
         assert len(colors.shape) == 4
         assert colors.shape[1] == 3
 
-        return torch.linalg.norm(colors.reshape((colors.shape[0],colors.shape[2],colors.shape[3], 1, colors.shape[1])) - self.colors, dim=-1).argmin(dim=-1, keepdim=True).permute(0,3,1,2)
+        return torch.linalg.norm(colors[None,:].permute(1,3,4,0,2) - self.colors, dim=-1).argmin(dim=-1, keepdim=True).permute(0,3,1,2)
 
     def get_values_from_indexes(self, indexes: torch.Tensor):
         
@@ -1773,6 +1773,7 @@ if __name__ == "__main__":
     
     print("Testing PyTorch version...")
 
+    torch.set_printoptions(precision=10)
     test_array_values_torch = torch.cat([torch.from_numpy(test_array_values)[None, None, :],torch.from_numpy(generate_random_array_nxn(4))[None, None, :]])
 
     print("test_array_values_torch:\n", test_array_values_torch)
@@ -1815,6 +1816,17 @@ if __name__ == "__main__":
     assert (indexes_from_values_torch==indexes_from_colors_torch).all()
     assert (colors_from_values_torch==colors_from_indexes_torch).all()
     assert (values_from_indexes_torch==values_from_colors_torch).all()
+    
+    # PyTorch vs NumPy
+    eps = 1e-5  
+    assert (test_array_values_torch[0].numpy()==test_array_values).all()
+    assert (np.abs(colors_from_values_torch[0].permute((1,2,0)).numpy() - colors_from_values) < eps).all()
+    assert (indexes_from_values_torch[0].permute((1,2,0)).squeeze().numpy() == indexes_from_values).all()
+    assert (np.abs(colors_from_indexes_torch[0].permute((1,2,0)).numpy() - colors_from_indexes) < eps).all()
+    assert (np.abs(values_from_indexes_torch[0].permute((1,2,0)).squeeze().numpy() - values_from_indexes) < eps).all() 
+    assert (indexes_from_colors_torch[0].permute((1,2,0)).squeeze().numpy() == indexes_from_colors).all()
+    assert (np.abs(values_from_colors_torch[0].permute((1,2,0)).squeeze().numpy() - values_from_colors) < eps).all()
+    
     
     print("Performance tests(NumPy):")
 
