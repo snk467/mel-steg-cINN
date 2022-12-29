@@ -82,7 +82,7 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
 
     l = torch.mean(neg_log_likeli) / tot_output_size
     
-    return 0.1 * torch.exp(l) + mse_z + mse_ab, mse_z.item(), mse_ab.item(), l.item()
+    return 0.1 * l + mse_z + mse_ab, mse_z.item(), mse_ab.item(), l.item()
 
 def sample_outputs(sigma, out_shape, batch_size, device=utilities.get_device(verbose=False)):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
@@ -180,14 +180,14 @@ def train_one_epoch(training_loader,
         
         revealing_model.train()
 
-        train_loss, mse_z, mse_ab, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1).to(device), x_ab_pred[0], x_ab_target.to(device), zz, jac)
+        train_loss, mse_z, mse_ab, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1).to(device), x_ab_pred[0], x_ab_with_message[0].to(device), zz, jac)
         train_loss.backward()
         revealing_cinn_model_utilities.optimizer_step()
         
         # Report
         if i_batch % batch_checkpoint == (batch_checkpoint - 1):
             step +=1
-            metrics.log_metrics({'batch_loss': train_loss.item(), 'mse_z': mse_z, 'mse_ab': mse_ab, 'nll': math.exp(nll)}, "train", step, i_batch)
+            metrics.log_metrics({'batch_loss': train_loss.item(), 'mse_z': mse_z, 'mse_ab': mse_ab, 'nll': nll}, "train", step, i_batch)
 
         avg_loss.append(train_loss.item())
 
@@ -200,7 +200,7 @@ def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimens
     x_l, x_ab_target, _, _ = x
     x_l = x_l.to('cpu')    
             
-    z = sample_z(hiding_cinn_output_dimensions, config.batch_size, device='cpu')
+    z = sample_z(hiding_cinn_output_dimensions, config.batch_size, alpha=config.alpha, device='cpu')
         
     cond = utilities.get_cond(x_l, hiding_cinn_model_utilities) 
         
@@ -324,6 +324,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset_size', type=int, required=False)
     parser.add_argument('--betas', type=tuple, required=False)
     parser.add_argument('--clamping', type=float, required=False)
+    parser.add_argument('--alpha', type=float, required=False)
     parser.add_argument('--init_scale', type=float, required=False)
     parser.add_argument('--lr', type=float, required=False)
     parser.add_argument('--lr_feature_net', type=float, required=False)
@@ -343,5 +344,5 @@ if __name__ == "__main__":
     if sweep_args_present:
         run(args, args.load)
     else:
-        run(main_config.cinn_training, args.load)
+        run(main_config.steg_cinn_training, args.load)
     
