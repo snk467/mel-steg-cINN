@@ -62,7 +62,7 @@ class Config(Structure):
 
     class cinn_training(Structure):   
         clamping = 1.5                      # Clamping parameter in the coupling blocks (higher = less stable but more expressive)
-
+        alpha = 0.1
         # Training hyperparameters: 
         lr = 5e-6
         lr_feature_net = 1e-4

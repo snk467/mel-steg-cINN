@@ -352,3 +352,23 @@ def get_cond(L_channel: torch.Tensor, cinn_utilities):
     with torch.no_grad():
         features, _ = cinn_utilities.model.feature_network.features(L_channel)
         return [*features]
+    
+def sample_z(out_shapes, batch_size, alpha=None, device=get_device(verbose=False)):
+    
+    samples = []
+    
+    for out_shape in out_shapes:
+        sample = torch.normal(mean=0.0, std=1.0, size=(batch_size, out_shape), device=device)
+        
+        if alpha is not None: 
+            def get_value_out_of_range():
+                value = 0.0
+                while np.abs(value) < alpha:
+                    value = np.random.normal(loc=0.0, scale=1.0)
+                return value
+            
+            sample = torch.where(torch.abs(sample) > torch.tensor(alpha), sample, torch.tensor(get_value_out_of_range()))
+            
+        samples.append(sample)
+        
+    return samples

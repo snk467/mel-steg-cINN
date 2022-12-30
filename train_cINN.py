@@ -63,7 +63,7 @@ def loss(x_ab_pred, x_ab_pred_feature_net, zz, jac):
     
     mse_importance = 0.6
     
-    return (1.0 - mse_importance) * torch.exp(l) + mse_importance * mse, mse.item(), l.item()
+    return (1.0 - mse_importance) * l + mse_importance * mse, mse.item(), l.item()
 
 def sample_outputs(sigma, out_shape, batch_size):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
@@ -80,7 +80,7 @@ def validate(cinn_model, cinn_output_dimensions, config, validation_loader):
     for i, vdata in enumerate(validation_loader):
         x_l, x_ab_target, cond, ab_pred = cinn_model.prepare_batch(vdata)           
 
-        z = sample_outputs(config.sampling_temperature, cinn_output_dimensions, vdata[0].shape[0])
+        z = utilities.sample_z(cinn_output_dimensions, config.batch_size, alpha=config.alpha)
 
         x_ab_output = cinn_model.reverse_sample(z, cond)
 
@@ -125,7 +125,7 @@ def train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_tra
 
         _, zz, jac = cinn_model(input)
         
-        z = sample_outputs(config.sampling_temperature, cinn_output_dimensions, input.shape[0])
+        z = utilities.sample_z(cinn_output_dimensions, config.batch_size, alpha=config.alpha)
         cinn_model.eval()        
         x_ab_pred = cinn_model.reverse_sample(z, cond)
         
@@ -138,7 +138,7 @@ def train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_tra
         # Report
         if i_batch % batch_checkpoint == (batch_checkpoint - 1):
             step +=1
-            metrics.log_metrics({'batch_loss': train_loss.item(), 'mse': mse, 'nll': math.exp(nll)}, "train", step, i_batch)
+            metrics.log_metrics({'batch_loss': train_loss.item(), 'mse': mse, 'nll': nll}, "train", step, i_batch)
 
         avg_loss.append(train_loss.item())
 
