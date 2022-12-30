@@ -171,22 +171,9 @@ def train(config=None, load=None):
         validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
 
         early_stopper = model.EarlyStopper(patience=config.early_stopper_patience, min_delta=config.early_stopper_min_delta)
-
-        cinn_builder = model.cINN_builder(config)
-    
-        feature_net = cinn_builder.get_feature_net()
-        fc_cond_net = cinn_builder.get_fc_cond_net()
-        cinn, cinn_output_dimensions = cinn_builder.get_cinn()
                 
-        cinn_model = model.WrappedModel(feature_net, fc_cond_net, cinn)
-        cinn_training_utilities = model.cINNTrainingUtilities(cinn_model, config)
-        
-        if load is not None:
-            restored_model = wandb.restore(MODEL_FILE_NAME, run_path=load)# "lavanyashukla/save_and_restore/10pr4joa"
-            logger.info(f"Loading model: {load} from: {restored_model.name}")
-            cinn_training_utilities.load(restored_model.name)
-            os.remove(restored_model.name)
-            cinn_model = cinn_training_utilities.model
+        cinn_training_utilities, cinn_output_dimensions = utilities.get_cinn_model(config, MODEL_FILE_NAME, load, device=device)
+        cinn_model = cinn_training_utilities.model
 
         logger.info(f"Training feature net: {main_config.cinn_management.end_to_end}")
             
