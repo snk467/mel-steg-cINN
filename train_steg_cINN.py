@@ -82,9 +82,9 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
 
     l = torch.mean(neg_log_likeli) / tot_output_size
     
-    mse_z_importance = 0.95
-    mse_ab_importance = 0.04
-    l_importance = 1.0 - mse_z_importance - mse_ab_importance    
+    mse_z_importance = 0.6
+    mse_ab_importance = 0.2
+    l_importance = max(1.0 - mse_z_importance - mse_ab_importance, 0.0)    
     
     return (l_importance * l) + (mse_z_importance * mse_z) + (mse_ab_importance * mse_ab), mse_z.item(), mse_ab.item(), l.item()
 
@@ -106,7 +106,7 @@ def validate(revealing_cinn_model_utilities, hiding_cinn_model_utilities, hiding
     avg_metrics = None
 
     for i, vdata in enumerate(validation_loader):        
-        if (i + 1) % 100 == 0:
+        if (i + 1) % (config.n_its_per_epoch * 2) == 0:
             break
         
         z, _, _, _, z_pred, _, _ = process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, revealing_model, hiding_model, vdata)
