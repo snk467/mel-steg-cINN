@@ -87,25 +87,6 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
 def sample_outputs(sigma, out_shape, batch_size, device=utilities.get_device(verbose=False)):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
 
-def sample_z(out_shapes, batch_size, alpha=None, device=utilities.get_device(verbose=False)):
-    
-    samples = []
-    
-    for out_shape in out_shapes:
-        sample = torch.normal(mean=0.0, std=1.0, size=(batch_size, out_shape), device=device)
-        
-        if alpha is not None: 
-            def get_value_out_of_range():
-                value = 0.0
-                while np.abs(value) < alpha:
-                    value = np.random.normal(loc=0.0, scale=1.0)
-                return value
-            
-            sample = torch.where(torch.abs(sample) > torch.tensor(alpha), sample, torch.tensor(get_value_out_of_range()))
-            
-        samples.append(sample)
-        
-    return samples
 
 def tuple_of_tensors_to_tensor(tuple_of_tensors):
     return  torch.stack(list(tuple_of_tensors), dim=0)
@@ -200,7 +181,7 @@ def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimens
     x_l, x_ab_target, _, _ = x
     x_l = x_l.to('cpu')    
             
-    z = sample_z(hiding_cinn_output_dimensions, config.batch_size, alpha=config.alpha, device='cpu')
+    z = utilities.sample_z(hiding_cinn_output_dimensions, config.batch_size, alpha=config.alpha, device='cpu')
         
     cond = utilities.get_cond(x_l, hiding_cinn_model_utilities) 
         
