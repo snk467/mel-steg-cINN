@@ -82,7 +82,11 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
 
     l = torch.mean(neg_log_likeli) / tot_output_size
     
-    return 0.1 * l + mse_z + mse_ab, mse_z.item(), mse_ab.item(), l.item()
+    mse_z_importance = 0.95
+    mse_ab_importance = 0.04
+    l_importance = 1.0 - mse_z_importance - mse_ab_importance    
+    
+    return (l_importance * l) + (mse_z_importance * mse_z) + (mse_ab_importance * mse_ab), mse_z.item(), mse_ab.item(), l.item()
 
 def sample_outputs(sigma, out_shape, batch_size, device=utilities.get_device(verbose=False)):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
