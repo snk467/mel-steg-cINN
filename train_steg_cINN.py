@@ -215,6 +215,7 @@ def compress_melspectrograms(config, x_l, x_ab_with_message):
     colormap = LUT.ColormapTorch.from_colormap("parula_norm_lab").to(device)
     
     indexes = colormap.get_indexes_from_colors(torch.cat([x_l, x_ab_with_message], dim=1).to(device))
+    
     return colormap.get_colors_from_indexes(indexes)
 
 
@@ -244,13 +245,12 @@ def train(config=None, load=None):
 
         revealing_cinn_model_utilities, revealing_cinn_output_dimensions = utilities.get_cinn_model(config, MODEL_FILE_NAME, load, device=device)
         
-        revealing_cinn_model = revealing_cinn_model_utilities.model
         
         hiding_cinn_model_utilities, hiding_cinn_output_dimensions = utilities.get_cinn_model(config, MODEL_FILE_NAME, load)
 
         logger.info(f"Training feature net: {main_config.cinn_management.end_to_end}")
             
-        logger.debug(f"cinn model device: {next(revealing_cinn_model.parameters()).device}")
+        logger.debug(f"cinn model device: {next(revealing_cinn_model_utilities.model.parameters()).device}")
         
         step = 0
 
@@ -280,20 +280,21 @@ def train(config=None, load=None):
             if early_stopper.early_stop(avg_metrics["MSE"]):
                 break
             
-            # hiding_cinn_model_utilities.model.load_state_dict(revealing_cinn_model_utilities.model.state_dict())
+            if config.rewrite_models:
+                hiding_cinn_model_utilities.model.load_state_dict(revealing_cinn_model_utilities.model.state_dict())
 
             # if i_epoch > 0 and (i_epoch % config.checkpoint_save_interval) == 0:
             #     model.save(config.filename + '_checkpoint_%.4i' % (i_epoch * (1-config.checkpoint_save_overwrite)))
 
-        revealing_cinn_model.eval()
+        revealing_cinn_model_utilities.model.eval()
         logger.info("Generating examples.")
-        training_examples = predict_cinn_example(revealing_cinn_model, revealing_cinn_output_dimensions, training_set, config, desc="Training set example", restore_audio=False)
+        training_examples = predict_cinn_example(revealing_cinn_model_utilities.model, revealing_cinn_output_dimensions, training_set, config, desc="Training set example", restore_audio=False)
         wandb.log({"training_examples": [wandb.Image(image) for image in training_examples]})
         print()
-        validation_examples = predict_cinn_example(revealing_cinn_model, revealing_cinn_output_dimensions, validation_set, config, desc="Validation set example", restore_audio=False)
+        validation_examples = predict_cinn_example(revealing_cinn_model_utilities.model, revealing_cinn_output_dimensions, validation_set, config, desc="Validation set example", restore_audio=False)
         wandb.log({"validation_examples": [wandb.Image(image) for image in validation_examples]})
         print()
-        overfitting_examples = predict_cinn_example_overfitting_test(revealing_cinn_model, revealing_cinn_output_dimensions, training_set, config, desc="Training set overfitting example", restore_audio=False)
+        overfitting_examples = predict_cinn_example_overfitting_test(revealing_cinn_model_utilities.model, revealing_cinn_output_dimensions, training_set, config, desc="Training set overfitting example", restore_audio=False)
         wandb.log({"overfitting_examples": [wandb.Image(image) for image in overfitting_examples]})
         
         # Save model

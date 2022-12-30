@@ -1691,7 +1691,7 @@ class ColormapTorch:
         assert len(indexes.shape) == 4
         assert indexes.shape[1] == 1
 
-        return self.colors[indexes].squeeze().permute((0,3,1,2))
+        return self.colors[indexes].squeeze(dim=1).permute((0,3,1,2))
 
     def get_indexes_from_values(self, values: torch.Tensor):
         assert len(values.shape) == 4
