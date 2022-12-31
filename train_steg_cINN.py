@@ -91,11 +91,63 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
 def sample_outputs(sigma, out_shape, batch_size, device=utilities.get_device(verbose=False)):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
 
+def generate_z_batch(bin: list, cinn_z_dimensions, batch_size, alpha, device):
+    
+    desired_size =  sum([x for x in cinn_z_dimensions])
+    
+    assert desired_size == len(bin)
+        
+    zs = []
+    for i in range(batch_size):
+        zs.append(generate_z(bin, cinn_z_dimensions, alpha, desired_size))
+        
+    for j in range(len(zs)):
+        if j != 0:
+            for k in range(len(cinn_z_dimensions)):
+                zs[0][k] = torch.cat([zs[0][k], zs[j][k]])
+        
+    return zs[0]
+
+def generate_z(bin, cinn_z_dimensions, alpha, desired_size):
+    z = []
+    
+    for bit in bin:
+        sample = np.random.normal()
+        if bit == 0:
+            while not (sample < -np.abs(alpha)):
+                sample = np.random.normal() 
+        else:
+            while not (sample > np.abs(alpha)):
+                sample = np.random.normal()
+                
+        z.append(sample) 
+        
+        if len(z) == desired_size:
+            break
+        
+    if len(z) != desired_size:
+        z.extend(np.random.normal(size=desired_size-len(z)))
+        
+    logger.debug(f"Z length: {len(z)}")
+    
+    # plt.hist(z, bins=100)
+    # plt.show()
+    
+    z = torch.from_numpy(np.array(z)).float()
+    z = list(z.split(cinn_z_dimensions))
+    
+    logger.debug(f"Z length after split: {len(z)}")
+    for i in range(len(z)):
+        logger.debug(f"z[{i}].shape: {z[i].shape}")
+        z[i] = z[i][None, :]
+        logger.debug(f"z[{i}].shape(corrected): {z[i].shape}")
+    return z
+
 
 def tuple_of_tensors_to_tensor(tuple_of_tensors):
     return  torch.stack(list(tuple_of_tensors), dim=0)
 
-def validate(revealing_cinn_model_utilities, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, config, validation_loader, alpha = None):
+def validate(validation_loader, config, bin_data, revealing_cinn_model_utilities, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, alpha = None):
 
     revealing_model = revealing_cinn_model_utilities.model
     revealing_model.eval()
@@ -109,7 +161,13 @@ def validate(revealing_cinn_model_utilities, hiding_cinn_model_utilities, hiding
         if (i + 1) % (config.n_its_per_epoch * 2) == 0:
             break
         
-        z, _, _, _, z_pred, _, _ = process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, revealing_model, hiding_model, vdata)
+        z, _, _, _, z_pred, _, _ = process_batch(config,
+                                                 bin_data,
+                                                 hiding_cinn_model_utilities,
+                                                 hiding_cinn_output_dimensions,
+                                                 revealing_model, 
+                                                 hiding_model,
+                                                 vdata)
         
         z_pred = torch.cat(z_pred, dim=1)
         z = torch.cat(z, dim=1)
@@ -126,6 +184,7 @@ def train_one_epoch(training_loader,
                     config,
                     i_epoch,
                     step,
+                    bin_data,
                     revealing_cinn_model_utilities: model.cINNTrainingUtilities,
                     revealing_cinn_output_dimensions,
                     hiding_cinn_model_utilities,
@@ -157,7 +216,13 @@ def train_one_epoch(training_loader,
 
     for i_batch , x in enumerate(training_loader):
         
-        z, x_ab_with_message, x_ab_target, input_melspectrogram, z_pred, zz, jac = process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, revealing_model, hiding_model, x)
+        z, x_ab_with_message, x_ab_target, input_melspectrogram, z_pred, zz, jac = process_batch(config,
+                                                                                                 bin_data,
+                                                                                                 hiding_cinn_model_utilities,
+                                                                                                 hiding_cinn_output_dimensions,
+                                                                                                 revealing_model,
+                                                                                                 hiding_model,
+                                                                                                 x)
         
         revealing_model.eval()      
           
@@ -181,11 +246,19 @@ def train_one_epoch(training_loader,
 
     return np.mean(avg_loss), step
 
-def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, revealing_model, hiding_model, x):
+def process_batch(config, bin_data, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, revealing_model, hiding_model, x):
     x_l, x_ab_target, _, _ = x
     x_l = x_l.to('cpu')    
             
-    z = utilities.sample_z(hiding_cinn_output_dimensions, config.batch_size, alpha=config.alpha, device='cpu')
+    z = generate_z_batch(bin_data,
+                         hiding_cinn_output_dimensions,
+                         config.batch_size,
+                         alpha=config.alpha,
+                         device='cpu')
+    
+    for a in z:
+        print(a.shape)
+        print(a.dtype)
         
     cond = utilities.get_cond(x_l, hiding_cinn_model_utilities) 
         
@@ -230,8 +303,10 @@ def train(config=None, load=None):
 
         revealing_cinn_model_utilities, revealing_cinn_output_dimensions = utilities.get_cinn_model(config, MODEL_FILE_NAME, load, device=device)
         
-        
         hiding_cinn_model_utilities, hiding_cinn_output_dimensions = utilities.get_cinn_model(config, MODEL_FILE_NAME, load)
+        
+        np.random.seed(1234)
+        bin_data = np.random.randint(2, size=tot_output_size)
 
         logger.info(f"Training feature net: {main_config.cinn_management.end_to_end}")
             
@@ -247,6 +322,7 @@ def train(config=None, load=None):
                                              config,
                                              i_epoch,
                                              step,
+                                             bin_data,
                                              revealing_cinn_model_utilities,
                                              revealing_cinn_output_dimensions,
                                              hiding_cinn_model_utilities,
@@ -255,7 +331,12 @@ def train(config=None, load=None):
             metrics.log_metrics({'loss': avg_loss}, "TRAIN AVG", step)
 
             logger.info("       Model validation.")
-            avg_metrics = validate(revealing_cinn_model_utilities, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, config, validation_loader)
+            avg_metrics = validate(validation_loader,
+                                   config,
+                                   bin_data,
+                                   revealing_cinn_model_utilities,
+                                   hiding_cinn_model_utilities,
+                                   hiding_cinn_output_dimensions,)
             # Report
             metrics.log_metrics(avg_metrics, "VALID AVG", step)
 
