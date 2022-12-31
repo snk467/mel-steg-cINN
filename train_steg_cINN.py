@@ -255,10 +255,6 @@ def process_batch(config, bin_data, hiding_cinn_model_utilities, hiding_cinn_out
                          config.batch_size,
                          alpha=config.alpha,
                          device='cpu')
-    
-    for a in z:
-        print(a.shape)
-        print(a.dtype)
         
     cond = utilities.get_cond(x_l, hiding_cinn_model_utilities) 
         
