@@ -324,6 +324,7 @@ def get_cinn_model(cinn_training_config, filename=None, run_path=None, device='c
     cinn_utilities = cinn.cinn_model.cINNTrainingUtilities(cinn_model.float(), cinn_training_config) 
     
     if run_path is not None:
+        logger.info(f"Loading cinn model: {run_path}")
         restored_model = wandb.restore(filename, run_path=run_path)
         cinn_utilities.load(restored_model.name, device=device) 
         
