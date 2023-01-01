@@ -161,13 +161,14 @@ def validate(validation_loader, config, bin_data, revealing_cinn_model_utilities
         if (i + 1) % (config.n_its_per_epoch * 2) == 0:
             break
         
-        z, _, _, _, z_pred, _, _ = process_batch(config,
-                                                 bin_data,
-                                                 hiding_cinn_model_utilities,
-                                                 hiding_cinn_output_dimensions,
-                                                 revealing_model, 
-                                                 hiding_model,
-                                                 vdata)
+        z, _, _, input_melspectrogram = process_batch(config,
+                                                        bin_data,
+                                                        hiding_cinn_model_utilities,
+                                                        hiding_cinn_output_dimensions,
+                                                        hiding_model,
+                                                        vdata)
+        
+        z_pred, zz, jac = revealing_model(input_melspectrogram)
         
         z_pred = torch.cat(z_pred, dim=1)
         z = torch.cat(z, dim=1)
@@ -216,13 +217,14 @@ def train_one_epoch(training_loader,
 
     for i_batch , x in enumerate(training_loader):
         
-        z, x_ab_with_message, x_ab_target, input_melspectrogram, z_pred, zz, jac = process_batch(config,
-                                                                                                 bin_data,
-                                                                                                 hiding_cinn_model_utilities,
-                                                                                                 hiding_cinn_output_dimensions,
-                                                                                                 revealing_model,
-                                                                                                 hiding_model,
-                                                                                                 x)
+        z, x_ab_with_message, x_ab_target, input_melspectrogram = process_batch(config,
+                                                                                bin_data,
+                                                                                hiding_cinn_model_utilities,
+                                                                                hiding_cinn_output_dimensions,
+                                                                                hiding_model,
+                                                                                x)
+        
+        z_pred, zz, jac = revealing_model(input_melspectrogram)
         
         revealing_model.eval()      
           
@@ -230,7 +232,7 @@ def train_one_epoch(training_loader,
         
         revealing_model.train()
 
-        train_loss, mse_z, mse_ab, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1).to(device), x_ab_pred[0], x_ab_with_message[0].to(device), zz, jac)
+        train_loss, mse_z, mse_ab, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1).to(device), x_ab_pred[0], x_ab_target.to(device), zz, jac)
         train_loss.backward()
         revealing_cinn_model_utilities.optimizer_step()
         
@@ -246,7 +248,7 @@ def train_one_epoch(training_loader,
 
     return np.mean(avg_loss), step
 
-def process_batch(config, bin_data, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, revealing_model, hiding_model, x):
+def process_batch(config, bin_data, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, hiding_model, x):
     x_l, x_ab_target, _, _ = x
     x_l = x_l.to('cpu')    
             
@@ -255,15 +257,21 @@ def process_batch(config, bin_data, hiding_cinn_model_utilities, hiding_cinn_out
                          config.batch_size,
                          alpha=config.alpha,
                          device='cpu')
+    
+    # z = utilities.sample_z(hiding_cinn_output_dimensions, config.batch_size, config.alpha, device='cpu')
         
     cond = utilities.get_cond(x_l, hiding_cinn_model_utilities) 
         
+    hiding_model.eval()
+        
     x_ab_with_message = hiding_model.reverse_sample(z, cond)
         
-    input_melspectrogram = compress_melspectrograms(config, x_l, x_ab_with_message[0]).float()
+    # input_melspectrogram = compress_melspectrograms(config, x_l, x_ab_with_message[0]).float()
+    
+    input_melspectrogram = torch.cat((x_l, x_ab_with_message[0]), dim=1).to(device)
         
-    z_pred, zz, jac = revealing_model(input_melspectrogram)
-    return z,x_ab_with_message,x_ab_target,input_melspectrogram,z_pred,zz,jac
+    
+    return z,x_ab_with_message,x_ab_target,input_melspectrogram
 
 def compress_melspectrograms(config, x_l, x_ab_with_message):    
     colormap = LUT.ColormapTorch.from_colormap("parula_norm_lab").to(device)
@@ -273,7 +281,7 @@ def compress_melspectrograms(config, x_l, x_ab_with_message):
     return colormap.get_colors_from_indexes(indexes)
 
 
-def train(config=None, load=None):  
+def train(config=None, load=None, revealing_load=None):  
     with wandb.init(project="steg-cINN", entity="snikiel", config=config): 
         wandb.log({"main_setup": main_config.to_dict()})
         prepare_training()
@@ -297,7 +305,7 @@ def train(config=None, load=None):
 
         early_stopper = model.EarlyStopper(patience=config.early_stopper_patience, min_delta=config.early_stopper_min_delta)
 
-        revealing_cinn_model_utilities, revealing_cinn_output_dimensions = utilities.get_cinn_model(config, MODEL_FILE_NAME, load, device=device)
+        revealing_cinn_model_utilities, revealing_cinn_output_dimensions = utilities.get_cinn_model(config, MODEL_FILE_NAME, revealing_load, device=device)
         
         hiding_cinn_model_utilities, hiding_cinn_output_dimensions = utilities.get_cinn_model(config, MODEL_FILE_NAME, load)
         
@@ -376,10 +384,10 @@ def train(config=None, load=None):
     # model.save(config.filename)
 
 
-def run(config, load=None):   
+def run(config, load=None, revealing_load=None):   
     # Initialize Weights & Biases
     wandb.login(key=main_config.common.wandb_key)
-    train(config, load)      
+    train(config, load, revealing_load)      
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train cINN for mel-spectrogram colorization.')
@@ -398,6 +406,7 @@ if __name__ == "__main__":
     parser.add_argument('--sampling_temperature', type=float, required=False)
     parser.add_argument('--weight_decay', type=float, required=False)
     parser.add_argument('--load', type=str, required=False)
+    parser.add_argument('--revealing_load', type=str, required=False)
     parser.add_argument('--early_stopper_min_delta', type=float, required=False)
     args = parser.parse_args()
     
@@ -405,7 +414,7 @@ if __name__ == "__main__":
     sweep_args_present = all(value is not None for value in sweep_args_dict.values()) 
     
     if sweep_args_present:
-        run(args, args.load)
+        run(args, args.load, args.revealing_load)
     else:
-        run(main_config.steg_cinn_training, args.load)
+        run(main_config.steg_cinn_training, args.load, args.revealing_load)
     
