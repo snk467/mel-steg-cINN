@@ -24,25 +24,13 @@ from helpers.visualization import predict_cinn_example, predict_cinn_example_ove
 import LUT
 
 from torchmetrics import Metric
-
-class CustomAccuracy(Metric):
-    def __init__(self):
-        super().__init__()
-        self.add_state("correct", default=torch.tensor(0), dist_reduce_fx="sum")
-        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
-
-    def update(self, preds: torch.Tensor, target: torch.Tensor):
-        assert preds.shape == target.shape
-
-        self.correct += torch.sum(torch.sign(preds) == torch.sign(target))
-        self.total += target.numel()
-
-    def compute(self):
-        return self.correct.float() / self.total
     
 def accuracy_loss(output, target):
     assert target.shape == output.shape
     return 1.0 - torch.sum(torch.sign(target) == torch.sign(output)) / target.numel()
+
+def accuracy_metrics(output, target):
+    return -(accuracy_loss(output, target) - 1.0)
 
 # Get logger
 global logger
@@ -66,7 +54,7 @@ def prepare_training():
         "MSE": torch_metrics.MeanSquaredError().to(device),
         "HuberLoss": torch.nn.HuberLoss().to(device),
         "MAE": torch_metrics.MeanAbsoluteError().to(device),
-        "Accuracy": CustomAccuracy().to(device)
+        "Accuracy": accuracy_metrics
                 
     }
     
