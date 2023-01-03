@@ -39,6 +39,10 @@ class CustomAccuracy(Metric):
 
     def compute(self):
         return self.correct.float() / self.total
+    
+def accuracy_loss(output, target):
+    assert target.shape == output.shape
+    return 1.0 - torch.sum(torch.sign(target) == torch.sign(output)) / target.numel()
 
 # Get logger
 global logger
@@ -84,9 +88,11 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
     
     mse_z_importance = 0.6
     mse_ab_importance = 0.2
-    l_importance = max(1.0 - mse_z_importance - mse_ab_importance, 0.0)    
+    l_importance =  0.2 # max(1.0 - mse_z_importance - mse_ab_importance, 0.0)    
     
-    return (l_importance * l) + (mse_z_importance * mse_z) + (mse_ab_importance * mse_ab), mse_z.item(), mse_ab.item(), l.item()
+    acc = accuracy_loss(z, z_pred)
+    
+    return (l_importance * l) + acc + mse_z + (mse_ab_importance * mse_ab), acc.item(), mse_z.item(), mse_ab.item(), l.item()
 
 def sample_outputs(sigma, out_shape, batch_size, device=utilities.get_device(verbose=False)):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
@@ -232,14 +238,14 @@ def train_one_epoch(training_loader,
         
         revealing_model.train()
 
-        train_loss, mse_z, mse_ab, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1).to(device), x_ab_pred[0], x_ab_target.to(device), zz, jac)
+        train_loss, acc, mse_z, mse_ab, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1).to(device), x_ab_pred[0], x_ab_target.to(device), zz, jac)
         train_loss.backward()
         revealing_cinn_model_utilities.optimizer_step()
         
         # Report
         if i_batch % batch_checkpoint == (batch_checkpoint - 1):
             step +=1
-            metrics.log_metrics({'batch_loss': train_loss.item(), 'mse_z': mse_z, 'mse_ab': mse_ab, 'nll': nll}, "train", step, i_batch)
+            metrics.log_metrics({'batch_loss': train_loss.item(), 'acc': -(acc - 1.0), 'mse_z': mse_z, 'mse_ab': mse_ab, 'nll': nll}, "train", step, i_batch)
 
         avg_loss.append(train_loss.item())
 
@@ -266,9 +272,9 @@ def process_batch(config, bin_data, hiding_cinn_model_utilities, hiding_cinn_out
         
     x_ab_with_message = hiding_model.reverse_sample(z, cond)
         
-    # input_melspectrogram = compress_melspectrograms(config, x_l, x_ab_with_message[0]).float()
+    input_melspectrogram = compress_melspectrograms(config, x_l, x_ab_with_message[0]).float()
     
-    input_melspectrogram = torch.cat((x_l, x_ab_with_message[0]), dim=1).to(device)
+    # input_melspectrogram = torch.cat((x_l, x_ab_with_message[0]), dim=1).to(device)
         
     
     return z,x_ab_with_message,x_ab_target,input_melspectrogram
