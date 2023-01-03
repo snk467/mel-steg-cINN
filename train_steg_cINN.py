@@ -151,9 +151,12 @@ def validate(validation_loader, config, bin_data, revealing_cinn_model_utilities
 
     avg_metrics = None
 
+    count = 0
     for i, vdata in enumerate(validation_loader):        
-        if (i + 1) % (config.n_its_per_epoch * 2) == 0:
+        if i == (config.n_its_per_epoch * 2):
             break
+        
+        count += 1
         
         z, _, _, input_melspectrogram = process_batch(config,
                                                         bin_data,
@@ -169,9 +172,9 @@ def validate(validation_loader, config, bin_data, revealing_cinn_model_utilities
 
         _, batch_metrics = metrics.gather_batch_metrics(z_pred, z.to(device))
 
-        avg_metrics = metrics.add_metrics(avg_metrics, batch_metrics)                
-    
-    avg_metrics = metrics.divide_metrics(avg_metrics, len(validation_loader) )
+        avg_metrics = metrics.add_metrics(avg_metrics, batch_metrics)   
+
+    avg_metrics = metrics.divide_metrics(avg_metrics, count)
 
     return avg_metrics
 
