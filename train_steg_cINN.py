@@ -36,8 +36,8 @@ def accuracy_metrics(output, target):
 global logger
 logger = helpers.logger.get_logger(__name__)
 
-MODEL_FILE_NAME = "cinn_model.pt"
-STEG_MODEL_FILE_NAME = "steg_cinn_model.pt"
+CINN_MODEL_FILE_NAME = "cinn_model.pt"
+STEG_CINN_MODEL_FILE_NAME = "steg_cinn_model.pt"
 
 def prepare_training():
     global device
@@ -74,7 +74,7 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
 
     l = torch.mean(neg_log_likeli) / tot_output_size
     
-    mse_z_importance = 0.6
+    # mse_z_importance = 0.6
     mse_ab_importance = 0.2
     l_importance =  0.2 # max(1.0 - mse_z_importance - mse_ab_importance, 0.0)    
     
@@ -85,7 +85,7 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
 def sample_outputs(sigma, out_shape, batch_size, device=utilities.get_device(verbose=False)):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
 
-def generate_z_batch(bin: list, cinn_z_dimensions, batch_size, alpha, device):
+def generate_z_batch(bin: list, cinn_z_dimensions, batch_size, alpha):
     
     desired_size =  sum([x for x in cinn_z_dimensions])
     
@@ -141,7 +141,7 @@ def generate_z(bin, cinn_z_dimensions, alpha, desired_size):
 def tuple_of_tensors_to_tensor(tuple_of_tensors):
     return  torch.stack(list(tuple_of_tensors), dim=0)
 
-def validate(validation_loader, config, bin_data, revealing_cinn_model_utilities, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, alpha = None):
+def validate(validation_loader, config, revealing_cinn_model_utilities, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, alpha = None):
 
     revealing_model = revealing_cinn_model_utilities.model
     revealing_model.eval()
@@ -159,13 +159,12 @@ def validate(validation_loader, config, bin_data, revealing_cinn_model_utilities
         count += 1
         
         z, _, _, input_melspectrogram = process_batch(config,
-                                                        bin_data,
                                                         hiding_cinn_model_utilities,
                                                         hiding_cinn_output_dimensions,
                                                         hiding_model,
                                                         vdata)
         
-        z_pred, zz, jac = revealing_model(input_melspectrogram)
+        z_pred, _, _ = revealing_model(input_melspectrogram)
         
         z_pred = torch.cat(z_pred, dim=1)
         z = torch.cat(z, dim=1)
@@ -182,7 +181,6 @@ def train_one_epoch(training_loader,
                     config,
                     i_epoch,
                     step,
-                    bin_data,
                     revealing_cinn_model_utilities: model.cINNTrainingUtilities,
                     revealing_cinn_output_dimensions,
                     hiding_cinn_model_utilities,
@@ -215,7 +213,6 @@ def train_one_epoch(training_loader,
     for i_batch , x in enumerate(training_loader):
         
         z, x_ab_with_message, x_ab_target, input_melspectrogram = process_batch(config,
-                                                                                bin_data,
                                                                                 hiding_cinn_model_utilities,
                                                                                 hiding_cinn_output_dimensions,
                                                                                 hiding_model,
@@ -245,16 +242,17 @@ def train_one_epoch(training_loader,
 
     return np.mean(avg_loss), step
 
-def process_batch(config, bin_data, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, hiding_model, x):
+def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimensions, hiding_model, x):
     x_l, x_ab_target, _, _ = x
     x_l = x_l.to('cpu')    
-            
-    z = generate_z_batch(bin_data,
-                         hiding_cinn_output_dimensions,
-                         config.batch_size,
-                         alpha=config.alpha,
-                         device='cpu')
     
+    m = np.random.randint(2, size=tot_output_size)
+            
+    z = generate_z_batch(m,
+                        hiding_cinn_output_dimensions,
+                        config.batch_size,
+                        alpha=config.alpha)
+
     # z = utilities.sample_z(hiding_cinn_output_dimensions, config.batch_size, config.alpha, device='cpu')
         
     cond = utilities.get_cond(x_l, hiding_cinn_model_utilities) 
@@ -266,7 +264,6 @@ def process_batch(config, bin_data, hiding_cinn_model_utilities, hiding_cinn_out
     input_melspectrogram = compress_melspectrograms(config, x_l, x_ab_with_message[0]).float()
     
     # input_melspectrogram = torch.cat((x_l, x_ab_with_message[0]), dim=1).to(device)
-        
     
     return z,x_ab_with_message,x_ab_target,input_melspectrogram
 
@@ -302,16 +299,19 @@ def train(config=None, load=None, revealing_load=None):
 
         early_stopper = model.EarlyStopper(patience=config.early_stopper_patience, min_delta=config.early_stopper_min_delta)
 
-        revealing_cinn_model_utilities, revealing_cinn_output_dimensions = utilities.get_cinn_model(config, MODEL_FILE_NAME, revealing_load, device=device)
-        
-        hiding_cinn_model_utilities, hiding_cinn_output_dimensions = utilities.get_cinn_model(config, MODEL_FILE_NAME, load)
-        
-        np.random.seed(1234)
-        bin_data = np.random.randint(2, size=tot_output_size)
+        try:
+            revealing_cinn_model_utilities, revealing_cinn_output_dimensions = utilities.get_cinn_model(config, STEG_CINN_MODEL_FILE_NAME, revealing_load, device=device)
+        except ValueError:
+            revealing_cinn_model_utilities, revealing_cinn_output_dimensions = utilities.get_cinn_model(config, CINN_MODEL_FILE_NAME, revealing_load, device=device)
 
+        try:
+            hiding_cinn_model_utilities, hiding_cinn_output_dimensions = utilities.get_cinn_model(config, STEG_CINN_MODEL_FILE_NAME, load)
+        except ValueError:
+            hiding_cinn_model_utilities, hiding_cinn_output_dimensions = utilities.get_cinn_model(config, CINN_MODEL_FILE_NAME, load)
+        
         logger.info(f"Training feature net: {main_config.cinn_management.end_to_end}")
-            
-        logger.debug(f"cinn model device: {next(revealing_cinn_model_utilities.model.parameters()).device}")
+        logger.info(f"Revealing model device: {next(revealing_cinn_model_utilities.model.parameters()).device}")
+        logger.info(f"Hiding model device: {next(hiding_cinn_model_utilities.model.parameters()).device}")
         
         step = 0
 
@@ -323,7 +323,6 @@ def train(config=None, load=None, revealing_load=None):
                                              config,
                                              i_epoch,
                                              step,
-                                             bin_data,
                                              revealing_cinn_model_utilities,
                                              revealing_cinn_output_dimensions,
                                              hiding_cinn_model_utilities,
@@ -334,7 +333,6 @@ def train(config=None, load=None, revealing_load=None):
             logger.info("       Model validation.")
             avg_metrics = validate(validation_loader,
                                    config,
-                                   bin_data,
                                    revealing_cinn_model_utilities,
                                    hiding_cinn_model_utilities,
                                    hiding_cinn_output_dimensions,)
@@ -347,11 +345,8 @@ def train(config=None, load=None, revealing_load=None):
             if early_stopper.early_stop(avg_metrics["MSE"]):
                 break
             
-            if config.rewrite_models:
+            if config.rewrite_models:                
                 hiding_cinn_model_utilities.model.load_state_dict(revealing_cinn_model_utilities.model.state_dict())
-
-            # if i_epoch > 0 and (i_epoch % config.checkpoint_save_interval) == 0:
-            #     model.save(config.filename + '_checkpoint_%.4i' % (i_epoch * (1-config.checkpoint_save_overwrite)))
 
         revealing_cinn_model_utilities.model.eval()
         logger.info("Generating examples.")
@@ -368,7 +363,7 @@ def train(config=None, load=None, revealing_load=None):
         model_path = None
         if main_config.common.save_model:   
             logger.info("Saving steg-cINN model.")
-            model_path = os.path.join(os.getcwd(), STEG_MODEL_FILE_NAME)
+            model_path = os.path.join(os.getcwd(), STEG_CINN_MODEL_FILE_NAME)
             revealing_cinn_model_utilities.save(model_path)
             wandb.save(model_path, base_path=os.getcwd(), policy="now")
 
