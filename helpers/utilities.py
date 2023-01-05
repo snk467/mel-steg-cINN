@@ -314,6 +314,10 @@ class MelStegCinn:
             return [*features]
        
 def get_cinn_model(cinn_training_config, filename=None, run_path=None, device='cpu'):
+    if run_path is not None:
+        logger.info(f"Downloading {filename}: {run_path}")
+        restored_model = wandb.restore(filename, run_path=run_path)
+    
     cinn_builder = cinn.cinn_model.cINN_builder(cinn_training_config)
     
     feature_net = cinn_builder.get_feature_net()
@@ -324,8 +328,7 @@ def get_cinn_model(cinn_training_config, filename=None, run_path=None, device='c
     cinn_utilities = cinn.cinn_model.cINNTrainingUtilities(cinn_model.float(), cinn_training_config) 
     
     if run_path is not None:
-        logger.info(f"Loading cinn model: {run_path}")
-        restored_model = wandb.restore(filename, run_path=run_path)
+        logger.info(f"Loading {filename}: {run_path}")
         cinn_utilities.load(restored_model.name, device=device) 
         
     return cinn_utilities, cinn_output_dimensions 
@@ -355,6 +358,11 @@ def get_cond(L_channel: torch.Tensor, cinn_utilities):
         return [*features]
     
 def sample_z(out_shapes, batch_size, alpha=None, device=get_device(verbose=False)):
+    def get_value_out_of_range():
+        value = 0.0
+        while np.abs(value) < alpha:
+            value = np.random.normal(loc=0.0, scale=1.0)
+        return value
     
     samples = []
     
@@ -362,12 +370,6 @@ def sample_z(out_shapes, batch_size, alpha=None, device=get_device(verbose=False
         sample = torch.normal(mean=0.0, std=1.0, size=(batch_size, out_shape), device=device)
         
         if alpha is not None: 
-            def get_value_out_of_range():
-                value = 0.0
-                while np.abs(value) < alpha:
-                    value = np.random.normal(loc=0.0, scale=1.0)
-                return value
-            
             sample = torch.where(torch.abs(sample) > torch.tensor(alpha), sample, torch.tensor(get_value_out_of_range(), device=device))
             
         samples.append(sample)
