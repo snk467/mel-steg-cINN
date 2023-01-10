@@ -160,7 +160,7 @@ def validate(validation_loader, config, revealing_cinn_model_utilities, hiding_c
 
     count = 0
     for i, vdata in enumerate(validation_loader):        
-        if i == (config.n_its_per_epoch * 2):
+        if i == (config.n_its_per_epoch // 2):
             break
         
         count += 1
