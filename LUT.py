@@ -19,7 +19,7 @@ def scale_parula_lab():
 
 class Colormap:
 
-    __colormaps = {
+    colormaps = {
         "parula_rgb": [[0.2422, 0.1504, 0.6603],
 [0.2444, 0.1534, 0.6728],
 [0.2464, 0.1569, 0.6847],
@@ -799,8 +799,8 @@ class Colormap:
         if type(colormap) != str:
             raise exceptions.ArgumentError
 
-        if colormap in Colormap.__colormaps:
-            colors = Colormap.__colormaps[colormap]
+        if colormap in Colormap.colormaps:
+            colors = Colormap.colormaps[colormap]
             return cls(colors)
         else:
             raise exceptions.ArgumentError
@@ -811,7 +811,7 @@ class Colormap:
         return cls(colors)
 
     def get_colormaps(self):
-        return self.__colormaps
+        return self.colormaps
 
     def __find_nearest_index_value(self, value):
         arr = self.values

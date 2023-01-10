@@ -316,7 +316,11 @@ class MelStegCinn:
 def get_cinn_model(cinn_training_config, filename=None, run_path=None, device='cpu'):
     if run_path is not None:
         logger.info(f"Downloading {filename}: {run_path}")
-        restored_model = wandb.restore(filename, run_path=run_path)
+        try:
+            restored_model = wandb.restore(filename, run_path=run_path)
+        except:
+            logger.info("Model file not found.")
+            raise
     
     cinn_builder = cinn.cinn_model.cINN_builder(cinn_training_config)
     
