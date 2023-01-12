@@ -183,3 +183,6 @@ config.yml
 
 # Auxiliary notebooks
 /notebooks/*
+
+# Temporary files
+/tmp
