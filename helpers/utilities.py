@@ -314,13 +314,9 @@ class MelStegCinn:
             return [*features]
        
 def get_cinn_model(cinn_training_config, filename=None, run_path=None, device='cpu'):
-    if run_path is not None:
-        logger.info(f"Downloading {filename}: {run_path}")
-        try:
-            restored_model = wandb.restore(filename, run_path=run_path)
-        except:
-            logger.info("Model file not found.")
-            raise
+    if run_path is not None:        
+        restored_model = wandb.restore(filename, run_path=run_path, root=os.path.join(os.getcwd(),"tmp",run_path))
+        logger.info(f"Downloaded {filename}: {run_path}")
     
     cinn_builder = cinn.cinn_model.cINN_builder(cinn_training_config)
     
@@ -332,8 +328,8 @@ def get_cinn_model(cinn_training_config, filename=None, run_path=None, device='c
     cinn_utilities = cinn.cinn_model.cINNTrainingUtilities(cinn_model.float(), cinn_training_config) 
     
     if run_path is not None:
-        logger.info(f"Loading {filename}: {run_path}")
         cinn_utilities.load(restored_model.name, device=device) 
+        logger.info(f"Loaded {filename}: {run_path}")
         
     return cinn_utilities, cinn_output_dimensions 
              

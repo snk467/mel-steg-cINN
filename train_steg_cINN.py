@@ -4,6 +4,7 @@ import copy
 import math
 import os
 from math import ceil
+import shutil
 
 import numpy as np
 import torch
@@ -353,11 +354,14 @@ def train(config=None, load=None, revealing_load=None):
 
         early_stopper = model.EarlyStopper(patience=config.early_stopper_patience, min_delta=config.early_stopper_min_delta)
 
+
+        logger.info("Downloading revealing model...")
         try:
             revealing_cinn_model_utilities, revealing_cinn_output_dimensions = utilities.get_cinn_model(config, STEG_CINN_MODEL_FILE_NAME, revealing_load, device=device)
         except ValueError:
             revealing_cinn_model_utilities, revealing_cinn_output_dimensions = utilities.get_cinn_model(config, CINN_MODEL_FILE_NAME, revealing_load, device=device)
 
+        logger.info("Downloading hiding model...")
         try:
             hiding_cinn_model_utilities, hiding_cinn_output_dimensions = utilities.get_cinn_model(config, STEG_CINN_MODEL_FILE_NAME, load)
         except ValueError:
@@ -417,14 +421,14 @@ def train(config=None, load=None, revealing_load=None):
         model_path = None
         if main_config.common.save_model:   
             logger.info("Saving steg-cINN model.")
-            model_path = os.path.join(os.getcwd(), STEG_CINN_MODEL_FILE_NAME)
+            model_path = os.path.join(os.getcwd(),"tmp", STEG_CINN_MODEL_FILE_NAME)
             revealing_cinn_model_utilities.save(model_path)
             wandb.save(model_path, base_path=os.getcwd(), policy="now")
 
         wandb.finish()
         
         if model_path is not None:
-            os.remove(model_path)
+            shutil.rmtree(os.path.join(os.getcwd(), "tmp"))
 
     # os.makedirs(os.path.dirname(config.filename), exist_ok=True)
     # model.save(config.filename)
