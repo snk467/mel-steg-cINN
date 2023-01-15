@@ -12,11 +12,12 @@ logger = helpers.logger.get_logger(__name__)
 
 class SpectrogramsDataset(Dataset):
 
-    def __init__(self, dataset_location, train, colormap="parula_norm_lab", augmentor=None, size=None, output_dim=None):
+    def __init__(self, dataset_location, train, colormap="parula_norm_lab", augmentor=None, size=None, output_dim=None, seed=None):
 
         self.__dataset_file = h5py.File(dataset_location, 'r')
         self.dataset = self.__dataset_file["melspectrograms"]
         self.output_dim = output_dim
+        self.train = train
         
         if size is not None and size < len(self.dataset):
             self.indexes = list(range(size))
@@ -26,7 +27,10 @@ class SpectrogramsDataset(Dataset):
         if train:
             dataset_range = slice(len(self.indexes) // 10, len(self.indexes))
         else:
-            dataset_range = slice(len(self.indexes) // 10)        
+            dataset_range = slice(len(self.indexes) // 10)     
+            
+        if seed is not None:
+            random.Random(seed).shuffle(self.indexes)   
 
         self.indexes = self.indexes[dataset_range]
         
@@ -58,8 +62,13 @@ class SpectrogramsDataset(Dataset):
             L = self.augmentor(L)
 
         # Prepare label
-        label = f"melspectrogram_{str(index).zfill(5)}",
+        label = f"melspectrogram_{str(self.indexes[index]).zfill(5)}"
 
+        if self.train:
+            logger.debug(f"(train) {label}")
+        else:
+            logger.debug(f"(valid) {label}")
+            
         # Return tensors(L_noise, ab, string_name, L_clear)
         return L, ab, label, L_clear        
 

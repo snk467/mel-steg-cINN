@@ -15,6 +15,7 @@ from hurry.filesize import size
 import gc
 import cinn.cinn_model
 import mel_steg_cinn_config
+from PIL import Image
 
 logger = helpers.logger.get_logger(__name__)
 
@@ -227,10 +228,7 @@ class MelStegCinn:
     def load_audio(self, path: str):
         return Audio(load_audio(path)[0], self.config.audio_parameters)
     
-    def encode(self, message: str):
-        bin_message = bitarray.bitarray()
-        bin_message.frombytes((message + self.config.end_of_message_string).encode('ascii'))
-        
+    def encode(self, bin_message: list):        
         desired_size =  sum([x for x in self.cinn_z_dimensions])
         
         z = []
@@ -265,8 +263,6 @@ class MelStegCinn:
             logger.debug(f"z[{i}].shape: {z[i].shape}")
             z[i] = z[i][None, :]
             logger.debug(f"z[{i}].shape(corrected): {z[i].shape}")
-            
-        logger.info(f"Encoded message: {message}")
         
         return z
     
@@ -283,14 +279,12 @@ class MelStegCinn:
         bin_message = []
         
         for sample in z:
-            if sample < -np.abs(self.config.alpha):
-                bin_message.append(False)
-            elif sample > np.abs(self.config.alpha):
-                bin_message.append(True)
+            if sample < 0: # -np.abs(self.config.alpha):
+                bin_message.append(0)
+            elif sample >= 0: # np.abs(self.config.alpha):
+                bin_message.append(1)
             
-        message_with_noise = bitarray.bitarray(bin_message).tobytes().decode('ascii', errors='replace')
-        message = message_with_noise.split(self.config.end_of_message_string)[0]
-        logger.info(f"Decoded message: {message[:100]}")        
+        return bin_message
     
     def get_L_channel(self, melspectrogram: MelSpectrogram):
         # Load tensor
@@ -298,6 +292,13 @@ class MelStegCinn:
         # Adjust axies 
         L = torch.reshape(L, (1, 1, L.shape[0], L.shape[1]))
         return L
+    
+    def get_ab_channels(self, melspectrogram: MelSpectrogram):
+        # Load tensor
+        ab = torch.from_numpy(melspectrogram.mel_spectrogram_data[:, :, 1:3])
+        # Adjust axies         
+        # ab = torch.reshape(ab, (1, 2, ab.shape[0], ab.shape[1]))
+        return ab.permute((2,0,1))[None, :]
     
     def get_melspectrogram_tensor(self, melspectrogram: MelSpectrogram):
         # Load tensor
@@ -375,3 +376,42 @@ def sample_z(out_shapes, batch_size, alpha=None, device=get_device(verbose=False
         samples.append(sample)
         
     return samples
+
+def image_to_bin(image: Image.Image):
+    WHITE = [255,255,255,255]
+    BLACK = [0,0,0,255]
+    
+    image_data = np.asarray(image)
+    
+    bin = []
+    
+    for x in range(image_data.shape[0]):
+        for y in range(image_data.shape[1]):
+            color = image_data[x,y]
+            if (color == WHITE).all():
+                bin.append(1)
+            elif (color == BLACK).all():
+                bin.append(0)
+            else:
+                raise ValueError(f"Unknown color: {color}")
+            
+    return bin
+
+def bin_to_image(bin: list):
+    WHITE = [255,255,255,255]
+    BLACK = [0,0,0,255]    
+    
+    image_data = np.zeros((1024, 512, 4), dtype=np.uint8)
+    
+    i = 0    
+    for x in range(image_data.shape[0]):
+        for y in range(image_data.shape[1]):
+            bit = bin[i]
+            if bit == 1:
+                image_data[x,y] = WHITE
+            else:
+                image_data[x,y] = BLACK
+            
+            i += 1
+            
+    return Image.fromarray(image_data)

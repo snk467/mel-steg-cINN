@@ -14,8 +14,13 @@ import helpers.normalization
 import soundfile
 import matplotlib.pyplot as plt
 from helpers.utilities import MelStegCinn
+from PIL import Image
+import scipy.cluster.vq as scipy_vq
+import helpers.visualization as visualization
 
 logger = helpers.logger.get_logger(__name__)
+
+LOGO_IMAGE = "double-logo.png"
 
 def main(args):
     
@@ -96,11 +101,61 @@ def demo(args):
     colormap = LUT.Colormap.from_colormap("parula_norm_lab")
     
     melspectrogram = audio.get_color_mel_spectrogram(True, colormap=colormap)
-    z = melStegCinn.encode("Demo message :-)")
+    
+    soundfile.write(os.path.join(os.getcwd() if args.output is None else args.output,
+                    f"{os.path.basename(args.audio).split('.')[0]}_base.wav"),
+                    melspectrogram.get_audio().get_audio(),
+                    config.audio_parameters.sample_rate)   
+    
+    visualization.get_rgb_image_from_lab_channels(melStegCinn.get_L_channel(melspectrogram), melStegCinn.get_ab_channels(melspectrogram), colormap=colormap).save("melspectrogram_without_message.png", "PNG")
+
+    
+    bin = utilities.image_to_bin(Image.open(LOGO_IMAGE))    
+    z = melStegCinn.encode(bin)
     L_channel = melStegCinn.get_L_channel(melspectrogram)
     cond = melStegCinn.get_cond(L_channel)
     ab_channels = cinn_model.reverse_sample(z, cond)
-    generated_melspectrogram = utilities.MelSpectrogram.from_color(torch.cat([L_channel, ab_channels[0]], dim=1).
+    
+    
+    
+    # # color <-> index
+    # indexes = colormap.get_indexes_from_colors(generated_melspectrogram.mel_spectrogram_data)
+    # generated_melspectrogram.mel_spectrogram_data = colormap.get_colors_from_indexes(indexes)
+    
+    audio = melspectrogram_tensor_to_audio(torch.cat([L_channel, ab_channels[0].detach()], dim=1), colormap)
+    
+    soundfile.write(os.path.join(os.getcwd() if args.output is None else args.output,
+                    f"{os.path.basename(args.audio).split('.')[0]}_with_logo.wav"),
+                    audio.get_audio(),
+                    config.audio_parameters.sample_rate)   
+    
+    visualization.get_rgb_image_from_lab_channels(L_channel, ab_channels[0].detach(), colormap=colormap).save("melspectrogram_with_message.png", "PNG")
+    
+    input_melspectrogram, colormaps=compress_melspectrograms2(torch.cat([L_channel, ab_channels[0].detach()], dim=1)) # melStegCinn.get_melspectrogram_tensor(generated_melspectrogram)
+    
+    audio = melspectrogram_tensor_to_audio(input_melspectrogram, colormaps[0])
+    
+    soundfile.write(os.path.join(os.getcwd() if args.output is None else args.output,
+                    f"{os.path.basename(args.audio).split('.')[0]}_compressed_and_with_logo.wav"),
+                    audio.get_audio(),
+                    config.audio_parameters.sample_rate)   
+    
+    visualization.get_rgb_image_from_lab_channels(L_channel, ab_channels[0].detach(), colormap=colormaps[0]).save("melspectrogram_compressed_and_with_message.png", "PNG")
+    
+    z_decode, _, _ = cinn_model(input_melspectrogram.double())
+    
+    print("Decode accuracy:", torch.sum(torch.sign(torch.cat(z, dim=1)) == torch.sign(torch.cat(z_decode, dim=1))) / torch.cat(z,dim=1).numel())
+    
+    bin_result = melStegCinn.decode(z_decode)
+    
+    print(len(bin_result))
+    
+    hidden_image = utilities.bin_to_image(bin_result)
+    
+    hidden_image.show()
+    
+def melspectrogram_tensor_to_audio(melspectrogram: torch.Tensor, colormap):
+    melspectrogram_object = utilities.MelSpectrogram.from_color(melspectrogram.
                                                                         squeeze().
                                                                         permute((1,2,0)).
                                                                         detach().
@@ -109,16 +164,51 @@ def demo(args):
                                                                     colormap=colormap,
                                                                     config=config.audio_parameters)
     
-    # color <-> index
-    indexes = colormap.get_indexes_from_colors(generated_melspectrogram.mel_spectrogram_data)
-    generated_melspectrogram.mel_spectrogram_data = colormap.get_colors_from_indexes(indexes)
+    return melspectrogram_object.get_audio()
+
+def compress_melspectrograms(mel_spectrograms: torch.Tensor):    
+    colormap = LUT.ColormapTorch.from_colormap("parula_norm_lab")
     
-    input_melspectrogram = melStegCinn.get_melspectrogram_tensor(generated_melspectrogram)
-    z_decode, _, _ = cinn_model(input_melspectrogram)
+    indexes = colormap.get_indexes_from_colors(mel_spectrograms)
     
-    print("Decode accuracy:", torch.sum(torch.sign(torch.cat(z, dim=1)) == torch.sign(torch.cat(z_decode, dim=1))) / torch.cat(z,dim=1).numel())
+    return colormap.get_colors_from_indexes(indexes)
+
+def compress_melspectrograms2(mel_spectrograms: torch.Tensor):
     
-    melStegCinn.decode(z_decode)
+    result_mel_spectrograms = []
+    result_colormaps = []
+    
+    for i in range(mel_spectrograms.shape[0]):
+        mel_spectrogram = mel_spectrograms[i]
+        shape = mel_spectrogram.shape
+        
+        # (3, 512, 512) -> (512^2, 3)
+        
+        # assert (mel_spectrogram.numpy().reshape((shape[1]*shape[2], shape[0])).reshape(shape) == mel_spectrogram.numpy()).all()
+        
+        mel_spectrogram = mel_spectrogram.numpy().transpose(1,2,0).reshape((shape[1]*shape[2], shape[0]))
+        
+        # print(mel_spectrogram.shape)
+        # print(np.array(LUT.Colormap.colormaps["parula_norm_lab"]).shape)
+        
+        centroids, labels = scipy_vq.kmeans2(mel_spectrogram, np.array(LUT.Colormap.colormaps["parula_norm_lab"]))
+        
+        colormap = LUT.Colormap.from_colors_list(centroids)
+        indexes = labels.reshape((shape[1], shape[2]))
+        
+        result_mel_spectrograms.append(torch.Tensor(colormap.get_colors_from_indexes(indexes))[None, :].permute((0, 3, 1, 2)))   
+        result_colormaps.append(colormap)
+        
+        # print(result_mel_spectrograms[-1])
+        # print(mel_spectrograms[-1])
+        
+        # index = (np.random.randint(512), np.random.randint(512))
+        # print(result_mel_spectrograms[-1][:, :, index[0], index[1]])
+        # print(mel_spectrograms[i][:, index[0], index[1]])
+        
+        # print(mse_loss(result_mel_spectrograms[-1], mel_spectrograms[i][None, :]).item())
+        
+    return torch.cat(result_mel_spectrograms, dim=0), result_colormaps
     
     
 # region W budowie
