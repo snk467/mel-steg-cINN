@@ -372,7 +372,7 @@ def sample_z(out_shapes, batch_size, alpha=None, device=get_device(verbose=False
         
         if alpha is not None: 
             sample = torch.where(torch.abs(sample) > torch.tensor(alpha), sample, torch.tensor(get_value_out_of_range(), device=device))
-            
+        
         samples.append(sample)
         
     return samples

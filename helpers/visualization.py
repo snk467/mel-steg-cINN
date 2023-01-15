@@ -140,7 +140,7 @@ def predict_cinn_example(cinn_model, cinn_output_dimensions,dataset, config, des
     example_id = random.randint(0, len(dataset) - 1)
     cinn_model.to(utilities.get_device(verbose=False))
     input, target, filename, clear_input  = dataset[example_id]
-    sample_z = utilities.sample_z(cinn_output_dimensions, config.batch_size, config.alpha, device=utilities.get_device(verbose=False))
+    sample_z = utilities.sample_z(cinn_output_dimensions, 1, config.alpha, device=utilities.get_device(verbose=False))
     x_l, x_ab, cond, ab_pred = cinn_model.prepare_batch((input, target, filename, clear_input))
     # cond[-1] = cond[-1][None, :]
     x_ab_sampled, b = cinn_model.reverse_sample(sample_z, cond)   

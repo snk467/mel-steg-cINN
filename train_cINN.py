@@ -61,7 +61,7 @@ def loss(x_ab_pred, x_ab_pred_feature_net, zz, jac):
 
     l = torch.mean(neg_log_likeli) / tot_output_size
     
-    mse_importance = 0.6
+    mse_importance = 0.75
     
     return (1.0 - mse_importance) * l + mse_importance * mse, mse.item(), l.item()
 
@@ -113,7 +113,7 @@ def train_one_epoch(cinn_model, training_loader, config, i_epoch, step, cinn_tra
                 param_group['lr'] = 1e-4
 
     avg_loss = []
-    batch_checkpoint = ceil(min(len(training_loader) / 10, config.n_its_per_epoch / 10))
+    batch_checkpoint = ceil(min(len(training_loader) / 10, config.n_its_per_epoch / 10, 3))
 
     for i_batch , x in enumerate(training_loader):
 
@@ -210,7 +210,7 @@ def train(config=None, load=None):
         wandb.log({"validation_examples": [wandb.Image(image) for image in validation_examples]})
         print()
         overfitting_examples = predict_cinn_example_self_sampled_test(cinn_model, cinn_output_dimensions, training_set, config, desc="Training set self-sampled example", restore_audio=False)
-        wandb.log({"overfitting_examples": [wandb.Image(image) for image in overfitting_examples]})
+        wandb.log({"self-sampled_examples": [wandb.Image(image) for image in overfitting_examples]})
         
         # Save model
         model_path = None
