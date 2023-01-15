@@ -3,7 +3,9 @@ import os
 
 class Config(Structure):
 
-    model_path = "/home/snikiel/Documents/REPOS/mgr_mel_steg_cinn/models/cinn_model_valiant-spaceship-529_512x512.pt"
+    # model_path = "/home/snikiel/Documents/REPOS/mgr_mel_steg_cinn/models/cinn_model_valiant-spaceship-529_512x512.pt"
+    # model_path = "/home/snikiel/Documents/REPOS/mgr_mel_steg_cinn/models/steg_cinn_model_dark-night-54_3otrzb11.pt"
+    model_path = "/home/snikiel/Documents/REPOS/mgr_mel_steg_cinn/models/steg_cinn_model_desert-waterfall-58_9rj1u4iz.pt"
     alpha = 0.1
     size = (512, 512)
     end_of_message_string = "_EOM"

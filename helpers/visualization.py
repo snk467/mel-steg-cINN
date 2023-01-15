@@ -43,7 +43,7 @@ def show_data(input_in, target_in, label, clear_input_in, restore_audio=False, a
 
     b_img = ToPILImage()(target[1]).convert('RGB') 
 
-    rgb_img = __get_rgb_image_from_lab_channels(clear_input, target)  
+    rgb_img = get_rgb_image_from_lab_channels(clear_input, target)  
     
     max_size = max(L_img.size[0], L_clear_img.size[0], a_img.size[0], b_img.size[0])
 
@@ -80,16 +80,24 @@ def show_data(input_in, target_in, label, clear_input_in, restore_audio=False, a
         
     return img
    
-def __get_colors_from_tensors(L_channel: torch.Tensor, ab_channels: torch.Tensor):
-    colormap_lab = LUT.Colormap.from_colormap("parula_norm_lab")  
-
-    result_size = L_channel.shape[1]
-
-    L_channel = F.interpolate(L_channel[None, :], (result_size, result_size))[0]
-    ab_channels = F.interpolate(ab_channels[None, :], (result_size, result_size))[0]
-
-    L_np = L_channel.numpy()
-    ab_np = ab_channels.numpy()      
+def __get_colors_from_tensors(L_channel: torch.Tensor, ab_channels: torch.Tensor):    
+    # colormap_lab = LUT.Colormap.from_colormap("parula_norm_lab")  
+    #result_size = L_channel.shape[1]
+    # L_channel = F.interpolate(L_channel[None, :], (result_size, result_size))[0]
+    # ab_channels = F.interpolate(ab_channels[None, :], (result_size, result_size))[0]
+    
+    assert len(L_channel.shape) == len(ab_channels.shape)
+    assert len(L_channel.shape) == 3 or (ab_channels.shape[0] == 1 and L_channel.shape[0] == 1) 
+    
+    if len(L_channel.shape) == 4:
+        L_np = L_channel.squeeze(dim=0).numpy()
+    else:
+        L_np = L_channel.numpy()
+        
+    if len(ab_channels.shape) == 4:
+        ab_np = ab_channels.squeeze(dim=0).numpy() 
+    else:
+        ab_np = ab_channels.numpy()     
     
     Lab_np = np.concatenate((L_np, ab_np))
     Lab_np = np.moveaxis(Lab_np, 0, -1)
@@ -104,10 +112,11 @@ def __restore_audio(L_channel: torch.Tensor, ab_channels: torch.Tensor, audio_fi
     filepath = os.path.join(os.getcwd(), f"{audio_file_name}.wav")
     soundfile.write(filepath, melspectrogram.get_audio().audio, audio_config.sample_rate)     
 
-def __get_rgb_image_from_lab_channels(L_channel: torch.Tensor, ab_channels: torch.Tensor):
-    colormap_lab = LUT.Colormap.from_colormap("parula_norm_lab")      
+def get_rgb_image_from_lab_channels(L_channel: torch.Tensor, ab_channels: torch.Tensor, colormap=None):
+    if colormap is None:
+        colormap = LUT.Colormap.from_colormap("parula_norm_lab")      
     Lab_np = __get_colors_from_tensors(L_channel, ab_channels)    
-    indexes = colormap_lab.get_indexes_from_colors(Lab_np)                            
+    indexes = colormap.get_indexes_from_colors(Lab_np)                            
     colormap_rgb = LUT.Colormap.from_colormap("parula_rgb")
     img_target = colormap_rgb.get_colors_from_indexes(indexes)
     img_target = ToPILImage()((img_target * 255).astype(np.uint8))        

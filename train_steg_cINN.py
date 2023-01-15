@@ -216,7 +216,7 @@ def train_one_epoch(training_loader,
                 param_group['lr'] = 1e-4
 
     avg_loss = []
-    batch_checkpoint = ceil(min(len(training_loader) / 10, config.n_its_per_epoch / 10))
+    batch_checkpoint = ceil(min(len(training_loader) / 10, config.n_its_per_epoch / 10, 10))
 
     for i_batch , x in enumerate(training_loader):
         
@@ -340,7 +340,8 @@ def train(config=None, load=None, revealing_load=None):
                                         train=True,
                                         size=config.dataset_size,
                                         augmentor=GaussianNoise(main_config.common.noise_mean, main_config.common.noise_variance),
-                                        output_dim=main_config.cinn_management.img_dims)
+                                        output_dim=main_config.cinn_management.img_dims,
+                                        seed=1234)
 
         validation_set = SpectrogramsDataset(main_config.common.dataset_location,
                                         train=False,
@@ -349,7 +350,7 @@ def train(config=None, load=None, revealing_load=None):
                                         output_dim=main_config.cinn_management.img_dims)
 
         # Create data loaders for our datasets; shuffle for training, not for validation
-        training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
+        training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
         validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
 
         early_stopper = model.EarlyStopper(patience=config.early_stopper_patience, min_delta=config.early_stopper_min_delta)
