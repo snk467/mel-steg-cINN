@@ -19,7 +19,7 @@ import helpers.visualization
 import helpers.utilities as utilities
 from helpers.metrics import Metrics
 from helpers.noise import GaussianNoise
-from helpers.visualization import predict_cinn_example, predict_cinn_example_overfitting_test
+from helpers.visualization import predict_cinn_example, predict_cinn_example_self_sampled_test
 
 # Get logger
 global logger
@@ -209,7 +209,7 @@ def train(config=None, load=None):
         validation_examples = predict_cinn_example(cinn_model, cinn_output_dimensions, validation_set, config, desc="Validation set example", restore_audio=False)
         wandb.log({"validation_examples": [wandb.Image(image) for image in validation_examples]})
         print()
-        overfitting_examples = predict_cinn_example_overfitting_test(cinn_model, cinn_output_dimensions, training_set, config, desc="Training set overfitting example", restore_audio=False)
+        overfitting_examples = predict_cinn_example_self_sampled_test(cinn_model, cinn_output_dimensions, training_set, config, desc="Training set self-sampled example", restore_audio=False)
         wandb.log({"overfitting_examples": [wandb.Image(image) for image in overfitting_examples]})
         
         # Save model
