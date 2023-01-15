@@ -21,7 +21,7 @@ import helpers.visualization
 import helpers.utilities as utilities
 from helpers.metrics import Metrics
 from helpers.noise import GaussianNoise
-from helpers.visualization import predict_cinn_example, predict_cinn_example_overfitting_test
+from helpers.visualization import predict_cinn_example, predict_cinn_example_self_sampled_test
 import LUT
 import scipy.cluster.vq as scipy_vq
 
@@ -77,7 +77,7 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
     l = torch.mean(neg_log_likeli) / tot_output_size
     
     # mse_z_importance = 0.6
-    mse_ab_importance = 0.2
+    mse_ab_importance = 100.0
     l_importance =  0.2 # max(1.0 - mse_z_importance - mse_ab_importance, 0.0)    
     
     acc = accuracy_loss(z, z_pred)
@@ -216,7 +216,7 @@ def train_one_epoch(training_loader,
                 param_group['lr'] = 1e-4
 
     avg_loss = []
-    batch_checkpoint = ceil(min(len(training_loader) / 10, config.n_its_per_epoch / 10, 10))
+    batch_checkpoint = ceil(min(len(training_loader) / 10, config.n_its_per_epoch / 10, 3))
 
     for i_batch , x in enumerate(training_loader):
         
@@ -254,14 +254,14 @@ def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimens
     x_l, x_ab_target, _, _ = x
     x_l = x_l.to('cpu')    
     
-    m = np.random.randint(2, size=tot_output_size)
+    # m = np.random.randint(2, size=tot_output_size)
             
-    z = generate_z_batch(m,
-                        hiding_cinn_output_dimensions,
-                        config.batch_size,
-                        alpha=config.alpha)
+    # z = generate_z_batch(m,
+    #                     hiding_cinn_output_dimensions,
+    #                     config.batch_size,
+    #                     alpha=config.alpha)
 
-    # z = utilities.sample_z(hiding_cinn_output_dimensions, config.batch_size, config.alpha, device='cpu')
+    z = utilities.sample_z(hiding_cinn_output_dimensions, config.batch_size, config.alpha, device='cpu')
         
     cond = utilities.get_cond(x_l, hiding_cinn_model_utilities) 
         
@@ -348,6 +348,9 @@ def train(config=None, load=None, revealing_load=None):
                                         size=config.dataset_size,
                                         augmentor=GaussianNoise(main_config.common.noise_mean, main_config.common.noise_variance),
                                         output_dim=main_config.cinn_management.img_dims)
+        
+        logger.info(f"Train dataset real size: {config.n_its_per_epoch}")   
+        logger.info(f"Validation dataset real size: {ceil(0.1 * config.n_its_per_epoch)}")   
 
         # Create data loaders for our datasets; shuffle for training, not for validation
         training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
@@ -415,8 +418,8 @@ def train(config=None, load=None, revealing_load=None):
         validation_examples = predict_cinn_example(revealing_cinn_model_utilities.model, revealing_cinn_output_dimensions, validation_set, config, desc="Validation set example", restore_audio=False)
         wandb.log({"validation_examples": [wandb.Image(image) for image in validation_examples]})
         print()
-        overfitting_examples = predict_cinn_example_overfitting_test(revealing_cinn_model_utilities.model, revealing_cinn_output_dimensions, training_set, config, desc="Training set overfitting example", restore_audio=False)
-        wandb.log({"overfitting_examples": [wandb.Image(image) for image in overfitting_examples]})
+        overfitting_examples = predict_cinn_example_self_sampled_test(revealing_cinn_model_utilities.model, revealing_cinn_output_dimensions, training_set, config, desc="Training set self_sampled example", restore_audio=False)
+        wandb.log({"self-sampled_examples": [wandb.Image(image) for image in overfitting_examples]})
         
         # Save model
         model_path = None
