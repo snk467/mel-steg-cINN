@@ -78,6 +78,9 @@ def validate(cinn_model, cinn_output_dimensions, config, validation_loader):
     avg_metrics = None
 
     for i, vdata in enumerate(validation_loader):
+        if vdata[0].shape[0] != config.batch_size:
+            break
+        
         x_l, x_ab_target, cond, ab_pred = cinn_model.prepare_batch(vdata)           
 
         z = utilities.sample_z(cinn_output_dimensions, config.batch_size, alpha=config.alpha)
