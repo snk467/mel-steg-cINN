@@ -77,12 +77,14 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
     l = torch.mean(neg_log_likeli) / tot_output_size
     
     # mse_z_importance = 0.6
-    mse_ab_importance = 100.0
+    mse_ab_importance = 0.2
     l_importance =  0.2 # max(1.0 - mse_z_importance - mse_ab_importance, 0.0)    
     
     acc = accuracy_loss(z, z_pred)
     
-    return (l_importance * l) + acc + mse_z + (mse_ab_importance * mse_ab), acc.item(), mse_z.item(), mse_ab.item(), l.item()
+    # return (l_importance * l) + acc + mse_z + (mse_ab_importance * mse_ab), acc.item(), mse_z.item(), mse_ab.item(), l.item()
+    
+    return (l_importance * l) + mse_z, acc.item(), mse_z.item(), mse_ab.item(), l.item()
 
 def sample_outputs(sigma, out_shape, batch_size, device=utilities.get_device(verbose=False)):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
@@ -161,7 +163,7 @@ def validate(validation_loader, config, revealing_cinn_model_utilities, hiding_c
 
     count = 0
     for i, vdata in enumerate(validation_loader):        
-        if i == ceil(0.1 * config.n_its_per_epoch):
+        if i == ceil(0.1 * config.n_its_per_epoch) or vdata[0].shape[0] != config.batch_size:
             break
         
         count += 1
@@ -340,8 +342,7 @@ def train(config=None, load=None, revealing_load=None):
                                         train=True,
                                         size=config.dataset_size,
                                         augmentor=GaussianNoise(main_config.common.noise_mean, main_config.common.noise_variance),
-                                        output_dim=main_config.cinn_management.img_dims,
-                                        seed=1234)
+                                        output_dim=main_config.cinn_management.img_dims)
 
         validation_set = SpectrogramsDataset(main_config.common.dataset_location,
                                         train=False,
@@ -353,7 +354,7 @@ def train(config=None, load=None, revealing_load=None):
         logger.info(f"Validation dataset real size: {ceil(0.1 * config.n_its_per_epoch)}")   
 
         # Create data loaders for our datasets; shuffle for training, not for validation
-        training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
+        training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
         validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
 
         early_stopper = model.EarlyStopper(patience=config.early_stopper_patience, min_delta=config.early_stopper_min_delta)
