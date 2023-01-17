@@ -232,11 +232,12 @@ def train_one_epoch(training_loader,
         
         revealing_model.eval()      
           
-        x_ab_pred = revealing_model.reverse_sample([x.to(device) for x in z], utilities.get_cond(input_melspectrogram[:, 0:1, :, :], revealing_cinn_model_utilities))
+        z = [x.to(device) for x in z]
+        x_ab_pred = revealing_model.reverse_sample(z, utilities.get_cond(input_melspectrogram[:, 0:1, :, :], revealing_cinn_model_utilities))
         
         revealing_model.train()
 
-        train_loss, acc, mse_z, mse_ab, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1).to(device), x_ab_pred[0], x_ab_target.to(device), zz, jac)
+        train_loss, acc, mse_z, mse_ab, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1), x_ab_pred[0], x_ab_target.to(device), zz, jac)
         train_loss.backward()
         revealing_cinn_model_utilities.optimizer_step()
         
