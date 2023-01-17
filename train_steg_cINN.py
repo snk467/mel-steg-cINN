@@ -84,7 +84,7 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
     
     # return (l_importance * l) + acc + mse_z + (mse_ab_importance * mse_ab), acc.item(), mse_z.item(), mse_ab.item(), l.item()
     
-    return (l_importance * l) + mse_z, acc.item(), mse_z.item(), mse_ab.item(), l.item()
+    return (l_importance * l) + mse_z + mse_ab, acc.item(), mse_z.item(), mse_ab.item(), l.item()
 
 def sample_outputs(sigma, out_shape, batch_size, device=utilities.get_device(verbose=False)):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
@@ -232,7 +232,7 @@ def train_one_epoch(training_loader,
         
         revealing_model.eval()      
           
-        x_ab_pred = revealing_model.reverse_sample(z_pred, utilities.get_cond(input_melspectrogram[:, 0:1, :, :], revealing_cinn_model_utilities))
+        x_ab_pred = revealing_model.reverse_sample([x.to(device) for x in z], utilities.get_cond(input_melspectrogram[:, 0:1, :, :], revealing_cinn_model_utilities))
         
         revealing_model.train()
 
@@ -348,10 +348,7 @@ def train(config=None, load=None, revealing_load=None):
                                         train=False,
                                         size=config.dataset_size,
                                         augmentor=GaussianNoise(main_config.common.noise_mean, main_config.common.noise_variance),
-                                        output_dim=main_config.cinn_management.img_dims)
-        
-        logger.info(f"Train dataset real size: {config.n_its_per_epoch}")   
-        logger.info(f"Validation dataset real size: {ceil(0.1 * config.n_its_per_epoch)}")   
+                                        output_dim=main_config.cinn_management.img_dims) 
 
         # Create data loaders for our datasets; shuffle for training, not for validation
         training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True, num_workers=2)
@@ -419,7 +416,7 @@ def train(config=None, load=None, revealing_load=None):
         validation_examples = predict_cinn_example(revealing_cinn_model_utilities.model, revealing_cinn_output_dimensions, validation_set, config, desc="Validation set example", restore_audio=False)
         wandb.log({"validation_examples": [wandb.Image(image) for image in validation_examples]})
         print()
-        overfitting_examples = predict_cinn_example_self_sampled_test(revealing_cinn_model_utilities.model, revealing_cinn_output_dimensions, training_set, config, desc="Training set self_sampled example", restore_audio=False)
+        overfitting_examples = predict_cinn_example_self_sampled_test(revealing_cinn_model_utilities.model, revealing_cinn_output_dimensions, training_set, config, desc="Training set self-sampled example", restore_audio=False)
         wandb.log({"self-sampled_examples": [wandb.Image(image) for image in overfitting_examples]})
         
         # Save model
