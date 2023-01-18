@@ -66,7 +66,7 @@ def prepare_training():
     global tot_output_size
     tot_output_size = 2 * main_config.cinn_management.img_dims[0] * main_config.cinn_management.img_dims[1]
 
-def loss(z_pred, z, ab_pred, ab_target, zz, jac):
+def loss(z_pred, z, ab_pred, ab_target, zz, jac, config):
     
     mse_z = mse_loss(z_pred, z)
     
@@ -74,17 +74,15 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac):
     
     neg_log_likeli = 0.5 * zz - jac
 
-    l = torch.mean(neg_log_likeli) / tot_output_size
-    
-    # mse_z_importance = 0.6
-    mse_ab_importance = 100.0
-    l_importance =  0.2 # max(1.0 - mse_z_importance - mse_ab_importance, 0.0)    
+    l = torch.mean(neg_log_likeli) / tot_output_size  
     
     acc = accuracy_loss(z, z_pred)
     
     # return (l_importance * l) + acc + mse_z + (mse_ab_importance * mse_ab), acc.item(), mse_z.item(), mse_ab.item(), l.item()
     
-    return (l_importance * l) + mse_z + mse_ab_importance * mse_ab, acc.item(), mse_z.item(), mse_ab.item(), l.item()
+    
+    
+    return (config.l_importance * l) + (config.mse_z_importance * mse_z) + (config.mse_ab_importance * mse_ab), acc.item(), mse_z.item(), mse_ab.item(), l.item()
 
 def sample_outputs(sigma, out_shape, batch_size, device=utilities.get_device(verbose=False)):
     return [sigma * torch.FloatTensor(torch.Size((batch_size, o))).normal_().to(device) for o in out_shape]
@@ -237,7 +235,7 @@ def train_one_epoch(training_loader,
         
         revealing_model.train()
 
-        train_loss, acc, mse_z, mse_ab, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1), x_ab_pred[0], x_ab_target.to(device), zz, jac)
+        train_loss, acc, mse_z, mse_ab, nll = loss(torch.cat(z_pred, dim=1), torch.cat(z, dim=1), x_ab_pred[0], x_ab_target.to(device), zz, jac, config)
         train_loss.backward()
         revealing_cinn_model_utilities.optimizer_step()
         
@@ -426,7 +424,7 @@ def train(config=None, load=None, revealing_load=None):
             logger.info("Saving steg-cINN model.")
             model_path = os.path.join(os.getcwd(),"tmp", STEG_CINN_MODEL_FILE_NAME)
             revealing_cinn_model_utilities.save(model_path)
-            wandb.save(model_path, base_path=os.getcwd(), policy="now")
+            wandb.save(model_path, base_path=os.path.join(os.getcwd(), "tmp"), policy="now")
 
         wandb.finish()
         
