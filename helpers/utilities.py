@@ -315,8 +315,12 @@ class MelStegCinn:
             return [*features]
        
 def get_cinn_model(cinn_training_config, filename=None, run_path=None, device='cpu'):
-    if run_path is not None:        
-        restored_model = wandb.restore(filename, run_path=run_path, root=os.path.join(os.getcwd(),"tmp",run_path))
+    if run_path is not None:    
+        try:    
+            restored_model = wandb.restore(filename, run_path=run_path, root=os.path.join(os.getcwd(),"tmp",run_path))
+        except ValueError:
+            restored_model = wandb.restore(os.path.join("tmp", filename), run_path=run_path, root=os.path.join(os.getcwd(),"tmp",run_path))
+            
         logger.info(f"Downloaded {filename}: {run_path}")
     
     cinn_builder = cinn.cinn_model.cINN_builder(cinn_training_config)
@@ -401,7 +405,7 @@ def bin_to_image(bin: list):
     WHITE = [255,255,255,255]
     BLACK = [0,0,0,255]    
     
-    image_data = np.zeros((1024, 512, 4), dtype=np.uint8)
+    image_data = np.zeros((400, 400, 4), dtype=np.uint8)
     
     i = 0    
     for x in range(image_data.shape[0]):

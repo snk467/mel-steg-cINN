@@ -82,6 +82,9 @@ class Config(Structure):
     class steg_cinn_training(Structure):   
         clamping = 1.5                      # Clamping parameter in the coupling blocks (higher = less stable but more expressive)
         alpha = 0.1
+        mse_ab_importance = 1.0
+        mse_z_importance = 1.5
+        l_importance =  0.25 
         rewrite_models = True
         # Training hyperparameters: 
         lr = 5e-6
