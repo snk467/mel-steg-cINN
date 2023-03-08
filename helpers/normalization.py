@@ -18,20 +18,29 @@ def scale_global_minmax(X, global_min=0.0, global_max=1.0, min=0.0, max=1.0):
     return X_scaled
 
 def calculate_statistics(melspectrograms):
-   
-    means = []
-    standard_deviations = []
-    mins = []
-    maxs = []
+    n = 0
+    sum = 0.0
+    sum_2 = 0.0
 
     for melspectrogram in tqdm(melspectrograms, leave=False, desc="Calculating statistics"):
         melspectrogram = melspectrogram.mel_spectrogram_data
-        means.append(np.mean(melspectrogram))
-        standard_deviations.append(np.std(melspectrogram))
-        mins.append(np.min(melspectrogram))
-        maxs.append(np.max(melspectrogram))   
+        
+        n += melspectrogram.size
+        sum += np.sum(melspectrogram)
+        sum_2 += np.sum(melspectrogram**2)
+         
+    return n, sum, sum_2
 
-    return means, standard_deviations, mins, maxs
+def calculate_minmax(melspectrograms):
+    min = np.Inf
+    max = -np.Inf
+
+    for melspectrogram in tqdm(melspectrograms, leave=False, desc="Calculating statistics"):
+        melspectrogram = melspectrogram.mel_spectrogram_data
+        min = np.min([min, np.min(melspectrogram)])
+        max = np.max([min, np.max(melspectrogram)])
+         
+    return min, max
 
 def normalize_wave_form(sample):
     return (sample - np.mean(sample)) / np.std(sample)
@@ -40,4 +49,5 @@ def normalize(melspectrogram, mean, standard_deviation, inverse=False):
     if inverse:
         return melspectrogram*standard_deviation + mean
     else:
+        assert standard_deviation != 0
         return (melspectrogram-mean) / standard_deviation

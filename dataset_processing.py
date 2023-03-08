@@ -55,68 +55,50 @@ class AudioDatasetProcessor:
             audio.append(mel_spectrogram.get_audio())
         return audio
 
-    def __calculate_global_statistics(self, means, standard_deviations):
-
+    def __calculate_global_statistics(self, n, sum, sum_2):
         self.logger.info("Calculating mean and standard deviation.")
-
-        for stats in tqdm(list(zip(range(0, len(means)), means, standard_deviations)), leave=False):
-            if stats[0] == 0:
-                _, mean, standard_deviation = stats
-            else:
-                count, current_mean, current_standard_deviation = stats
-                old_mean = mean
-                m = count * 1.0
-                n = 1.0
-                mean = m/(m+n)*old_mean + n/(m+n)*current_mean
-                standard_deviation  = m/(m+n)*standard_deviation**2 + n/(m+n)*current_standard_deviation**2 +\
-                            m*n/(m+n)**2 * (old_mean - current_mean)**2
-                standard_deviation = np.sqrt(standard_deviation)
-
-        return mean, standard_deviation
+        return sum/n, np.sqrt(sum_2 / n - (sum / n)**2)
 
 
     def get_statistics(self):
         self.logger.info("Processing audio.")
 
-        means = []
-        standard_deviations = []
+        n = 0
+        sum = 0.0
+        sum_2 = 0.0
         batch_size = 100
 
         for audio_files_batch in tqdm(self.__get_batches(self.audio_files, batch_size=batch_size), leave=False, desc="Precessing audio files batches"):
             loaded_audio = self.load_audio_files(audio_files_batch)
-
             mel_spectrograms = self.get_mel_spectrograms(loaded_audio, normalized=False, range=None)
 
-            batch_means, batch_standard_deviations, _, _ = normalization.calculate_statistics(mel_spectrograms)
-            means.extend(batch_means)
-            standard_deviations.extend(batch_standard_deviations)
+            n_batch, sum_batch, sum_2_batch = normalization.calculate_statistics(mel_spectrograms)
+            
+            n += n_batch
+            sum += sum_batch
+            sum_2 += sum_2_batch
 
-        mean, standard_deviation = self.__calculate_global_statistics(means, standard_deviations)
+        mean, standard_deviation = self.__calculate_global_statistics(n, sum, sum_2)
 
         self.logger.info("Adjusting statistics.")
         def modify_stats(audio):
-            audio.config.mean = mean
-            audio.config.standard_deviation = standard_deviation      
+            audio.config.mean = float(mean)
+            audio.config.standard_deviation = float(standard_deviation)      
             return audio      
 
-        loaded_audio = map(modify_stats, loaded_audio)
-
-        mins = []
-        maxs = []
-
+        min = np.Inf
+        max = -np.Inf
+        self.logger.info("Calculating min and max.")
         for audio_files_batch in tqdm(self.__get_batches(self.audio_files, batch_size=batch_size), leave=False, desc="Precessing audio files batches"):
             loaded_audio = self.load_audio_files(audio_files_batch)
-
+            loaded_audio = map(modify_stats, loaded_audio)
+            
             mel_spectrograms = self.get_mel_spectrograms(loaded_audio, normalized=True, range=None)
-
-            _, _, batch_mins, batch_maxs = normalization.calculate_statistics(mel_spectrograms)
-
-            mins.extend(batch_mins)
-            maxs.extend(batch_maxs)
-
-        self.logger.info("Calculating min and max.")
-        min = np.min(mins)
-        max = np.min(maxs)
+            
+            min_batch, max_batch = normalization.calculate_minmax(mel_spectrograms)
+            
+            min = np.min([min, min_batch])
+            max = np.max([max, max_batch])
 
         self.logger.info("Audio processing done.")
 
@@ -233,7 +215,7 @@ if __name__ == "__main__":
         helpers.logger.enable_debug_mode()
 
     # Get audio processor
-    audio_processor = AudioDatasetProcessor(args.input_dir, config.audio_parameters.resolution_128x128)
+    audio_processor = AudioDatasetProcessor(args.input_dir, config.audio_parameters.resolution_512x512)
     logger.info("Audio processor initialized.")
 
     if args.statistics:
