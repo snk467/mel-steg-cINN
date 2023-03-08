@@ -1,9 +1,6 @@
 import os
-import bitarray
 import librosa
 import random
-
-import wandb
 import helpers.logger
 import helpers.normalization as normalization
 import numpy as np
@@ -13,8 +10,6 @@ import torch
 from pynvml import *
 from hurry.filesize import size
 import gc
-import cinn.cinn_model
-import mel_steg_cinn_config
 from PIL import Image
 
 logger = helpers.logger.get_logger(__name__)
@@ -203,140 +198,6 @@ def _optimizer_to(optimizer, device):
                     subparam.data = subparam.data.to(device)
                     if subparam._grad is not None:
                         subparam._grad.data = subparam._grad.data.to(device)
-
-
-
-
-class MelStegCinn:
-    def __init__(self, config: mel_steg_cinn_config.Config):
-        self.config = config
-        self.cinn_utilities = None
-        self.cinn_z_dimensions = None
-        pass
-    
-    def load_cinn(self):
-        cinn_builder = cinn.cinn_model.cINN_builder(self.config.cinnConfig)
-        feature_net = cinn_builder.get_feature_net().double()
-        fc_cond_net = cinn_builder.get_fc_cond_net().double()
-        cinn_net, self.cinn_z_dimensions = cinn_builder.get_cinn()
-        cinn_model = cinn.cinn_model.WrappedModel(feature_net, fc_cond_net, cinn_net.double())
-        self.cinn_utilities = cinn.cinn_model.cINNTrainingUtilities(cinn_model, self.config.cinnConfig)
-        self.cinn_utilities.load(self.config.model_path, device='cpu') 
-        
-        return self.cinn_utilities.model
-        
-    def load_audio(self, path: str):
-        return Audio(load_audio(path)[0], self.config.audio_parameters)
-    
-    def encode(self, bin_message: list):        
-        desired_size =  sum([x for x in self.cinn_z_dimensions])
-        
-        z = []
-        
-        for bit in bin_message:
-            sample = np.random.normal()
-            if bit == 0:
-                while not (sample < -np.abs(self.config.alpha)):
-                    sample = np.random.normal() 
-            else:
-                while not (sample > np.abs(self.config.alpha)):
-                    sample = np.random.normal()
-                    
-            z.append(sample) 
-            
-            if len(z) == desired_size:
-                break
-            
-        if len(z) != desired_size:
-            z.extend(np.random.normal(size=desired_size-len(z)))
-            
-        logger.debug(f"Z length: {len(z)}")
-        
-        # plt.hist(z, bins=100)
-        # plt.show()
-        
-        z = torch.from_numpy(np.array(z))
-        z = list(z.split(self.cinn_z_dimensions))
-        
-        logger.debug(f"Z length after split: {len(z)}")
-        for i in range(len(z)):
-            logger.debug(f"z[{i}].shape: {z[i].shape}")
-            z[i] = z[i][None, :]
-            logger.debug(f"z[{i}].shape(corrected): {z[i].shape}")
-        
-        return z
-    
-    def decode(self, z):
-        
-        logger.debug(f"Z input length: {len(z)}")
-        z = torch.cat(z, dim=1).squeeze().detach().numpy()
-        
-        # plt.hist(z, bins=100)
-        # plt.show()
-        
-        logger.debug(f"Z concatenated shape: {z.shape}")
-        
-        bin_message = []
-        
-        for sample in z:
-            if sample < 0: # -np.abs(self.config.alpha):
-                bin_message.append(0)
-            elif sample >= 0: # np.abs(self.config.alpha):
-                bin_message.append(1)
-            
-        return bin_message
-    
-    def get_L_channel(self, melspectrogram: MelSpectrogram):
-        # Load tensor
-        L = torch.from_numpy(melspectrogram.mel_spectrogram_data[:, :, 0])
-        # Adjust axies 
-        L = torch.reshape(L, (1, 1, L.shape[0], L.shape[1]))
-        return L
-    
-    def get_ab_channels(self, melspectrogram: MelSpectrogram):
-        # Load tensor
-        ab = torch.from_numpy(melspectrogram.mel_spectrogram_data[:, :, 1:3])
-        # Adjust axies         
-        # ab = torch.reshape(ab, (1, 2, ab.shape[0], ab.shape[1]))
-        return ab.permute((2,0,1))[None, :]
-    
-    def get_melspectrogram_tensor(self, melspectrogram: MelSpectrogram):
-        # Load tensor
-        spectrogram_data = torch.from_numpy(melspectrogram.mel_spectrogram_data)
-        # Adjust axies 
-        spectrogram_data = torch.permute(spectrogram_data, (2, 0, 1))[None, :]
-        
-        return spectrogram_data
-        
-    
-    def get_cond(self, L_channel: torch.Tensor):
-        with torch.no_grad():
-            features, _ = self.cinn_utilities.model.feature_network.features(L_channel)
-            return [*features]
-       
-def get_cinn_model(cinn_training_config, filename=None, run_path=None, device='cpu'):
-    if run_path is not None:    
-        try:    
-            restored_model = wandb.restore(filename, run_path=run_path, root=os.path.join(os.getcwd(),"tmp",run_path))
-        except ValueError:
-            restored_model = wandb.restore(os.path.join("tmp", filename), run_path=run_path, root=os.path.join(os.getcwd(),"tmp",run_path))
-            
-        logger.info(f"Downloaded {filename}: {run_path}")
-    
-    cinn_builder = cinn.cinn_model.cINN_builder(cinn_training_config)
-    
-    feature_net = cinn_builder.get_feature_net()
-    fc_cond_net = cinn_builder.get_fc_cond_net()
-    cinn_net, cinn_output_dimensions = cinn_builder.get_cinn()
-            
-    cinn_model = cinn.cinn_model.WrappedModel(feature_net, fc_cond_net, cinn_net).to(device)
-    cinn_utilities = cinn.cinn_model.cINNTrainingUtilities(cinn_model.float(), cinn_training_config) 
-    
-    if run_path is not None:
-        cinn_utilities.load(restored_model.name, device=device) 
-        logger.info(f"Loaded {filename}: {run_path}")
-        
-    return cinn_utilities, cinn_output_dimensions 
              
     
 # def load_audio(path: str, audio_parameters):
@@ -405,7 +266,7 @@ def bin_to_image(bin: list):
     WHITE = [255,255,255,255]
     BLACK = [0,0,0,255]    
     
-    image_data = np.zeros((400, 400, 4), dtype=np.uint8)
+    image_data = np.zeros((273, 273, 4), dtype=np.uint8)
     
     i = 0    
     for x in range(image_data.shape[0]):
