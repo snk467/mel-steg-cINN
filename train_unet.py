@@ -171,9 +171,11 @@ def train(config = None):
 
         # Predict first element from train
         if common_config.present_data:
-            predict_example(model, training_set, desc="Training set example")
+            training_examples = predict_example(model, training_set, desc="Training set example")
+            wandb.log({"training_examples": [wandb.Image(image_data[0], caption=image_data[1]) for image_data in training_examples]})
             print()
-            predict_example(model, validation_set, desc="Validation set example")
+            validation_examples = predict_example(model, validation_set, desc="Validation set example")
+            wandb.log({"validation_examples": [wandb.Image(image_data[0], caption=image_data[1]) for image_data in validation_examples]})
         
         # Save model
         model_path = None
@@ -208,9 +210,10 @@ def predict_example(model, dataset, desc=None):
     output = model(batched_input)
     print(desc)
     print("Result:")
-    show_data(batched_input[0], output[0], filename, clear_input)
+    result_img = show_data(batched_input[0], output[0], filename, clear_input)
     print("Target:")
-    show_data(input, target, filename, clear_input) 
+    target_img = show_data(input, target, filename, clear_input) 
+    return [(target_img, "target"), (result_img, "result")]
 
 def prepare_globals():    
     # Get logger
