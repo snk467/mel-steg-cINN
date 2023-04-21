@@ -186,3 +186,6 @@ config.yml
 
 # Temporary files
 /tmp
+
+# IDEA
+/.idea
