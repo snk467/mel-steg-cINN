@@ -5,14 +5,12 @@ import shutil
 from math import ceil
 
 import numpy as np
-import scipy.cluster.vq as scipy_vq
 import torch
 import torch.nn
 import torch.optim
 import torchmetrics as torch_metrics
 import wandb
 
-import LUT
 import models.cinn.cinn_model as model
 import utils.logger
 import utils.utilities as utilities
@@ -277,7 +275,7 @@ def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimens
     x_ab_with_message = hiding_model.reverse_sample(z, cond)
 
     # input_melspectrogram = compress_melspectrograms(config, x_l, x_ab_with_message[0])
-    input_melspectrogram = compress_melspectrograms2(torch.cat([x_l, x_ab_with_message[0].detach()], dim=1))
+    input_melspectrogram = compress_melspectrograms(torch.cat([x_l, x_ab_with_message[0].detach()], dim=1))
 
     # print("HEJ!", input_melspectrogram.shape)
 
@@ -286,48 +284,20 @@ def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimens
     return z, x_ab_with_message, x_ab_target, input_melspectrogram.float()
 
 
-def compress_melspectrograms(config, x_l, x_ab_with_message):
-    colormap = LUT.ColormapTorch.from_colormap("parula_norm_lab").to(device)
+# def compress_melspectrograms(config, x_l, x_ab_with_message):
+#     colormap = LUT.ColormapTorch.from_colormap("parula_norm_lab").to(device)
+#
+#     indexes = colormap.get_indexes_from_colors(torch.cat([x_l, x_ab_with_message], dim=1).to(device))
+#
+#     return colormap.get_colors_from_indexes(indexes)
 
-    indexes = colormap.get_indexes_from_colors(torch.cat([x_l, x_ab_with_message], dim=1).to(device))
 
-    return colormap.get_colors_from_indexes(indexes)
-
-
-def compress_melspectrograms2(mel_spectrograms: torch.Tensor):
+def compress_melspectrograms(mel_spectrograms: torch.Tensor):
     result_mel_spectrograms = []
-    # result_colormaps = []
 
     for i in range(mel_spectrograms.shape[0]):
-        mel_spectrogram = mel_spectrograms[i]
-        shape = mel_spectrogram.shape
-
-        # (3, 512, 512) -> (512^2, 3)
-
-        # assert (mel_spectrogram.numpy().reshape((shape[1]*shape[2], shape[0])).reshape(shape) == mel_spectrogram.numpy()).all()
-
-        mel_spectrogram = mel_spectrogram.numpy().transpose(1, 2, 0).reshape((shape[1] * shape[2], shape[0]))
-
-        # print(mel_spectrogram.shape)
-        # print(np.array(LUT.Colormap.colormaps["parula_norm_lab"]).shape)
-
-        centroids, labels = scipy_vq.kmeans2(mel_spectrogram, np.array(LUT.Colormap.colormaps["parula_norm_lab"]))
-
-        colormap = LUT.Colormap.from_colors_list(centroids)
-        indexes = labels.reshape((shape[1], shape[2]))
-
-        result_mel_spectrograms.append(
-            torch.Tensor(colormap.get_colors_from_indexes(indexes))[None, :].permute((0, 3, 1, 2)))
-        # result_colormaps.append(colormap)
-
-        # print(result_mel_spectrograms[-1])
-        # print(mel_spectrograms[-1])
-
-        # index = (np.random.randint(512), np.random.randint(512))
-        # print(result_mel_spectrograms[-1][:, :, index[0], index[1]])
-        # print(mel_spectrograms[i][:, index[0], index[1]])
-
-        # print(mse_loss(result_mel_spectrograms[-1], mel_spectrograms[i][None, :]).item())
+        indexes, centroids = utilities.compress_melspectrogram(mel_spectrograms[i])
+        result_mel_spectrograms.append(utilities.decompress_melspectrogram(indexes, centroids))
 
     return torch.cat(result_mel_spectrograms, dim=0).to(device)
 

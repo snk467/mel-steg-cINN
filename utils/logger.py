@@ -1,7 +1,7 @@
 import logging
 
 logging.basicConfig(level=logging.INFO,
-                    format='[%(asctime)s] %(levelname)s [%(name)s, %(funcName)s:%(lineno)s] %(message)s')
+                    format='[%(asctime)s] %(levelname)s [%(name)s, %(module)s.%(funcName)s:%(lineno)s] %(message)s')
 
 
 def get_logger(name):
