@@ -67,6 +67,8 @@ def validate_args(args):
 
 
 def hide(args):
+    logger.info("Mode: hiding")
+
     cinn_model, z_dim = demo_app_utils.load_cinn(args.compress, config)
     cinn_model.eval()
 
@@ -76,10 +78,10 @@ def hide(args):
 
     if args.image:
         binary_data, message_shape = demo_app_utils.image_to_bin(Image.open(args.image))
+        logger.info("Image converted to binary data.")
     else:
         binary_data, message_shape = demo_app_utils.text_to_bin(args.message)
-
-    print(message_shape)
+        logger.info("Message converted to binary data.")
 
     bch_parameters = None
     if args.bch is not None:
@@ -89,47 +91,63 @@ def hide(args):
         else:
             bch_parameters = args.bch
             binary_data = BCHCode(binary_data).encode(args.bch[0], args.bch[1])
+        logger.info("Binary data encoded with BCH.")
 
     z = demo_app_utils.encode(binary_data, z_dim, config)
+    logger.info("Binary data encoded to z (noise).")
 
     l_channel = demo_app_utils.get_l_channel(melspectrogram)
     cond = demo_app_utils.get_cond(l_channel, cinn_model)
     ab_channels = cinn_model.reverse_sample(z, cond)
+    logger.info("Binary data hidden into mel spectrogram.")
 
     melspectrogram_data = torch.cat([l_channel, ab_channels[0].detach()], dim=1).float()
 
     centroids = None
     if args.compress:
         melspectrogram_data, centroids = utilities.compress_melspectrogram(melspectrogram_data[0])
+        logger.info("Compressed mel spectrogram.")
     else:
         melspectrogram_data = melspectrogram_data.numpy()
 
     write_melspectrogram_data(melspectrogram_data, centroids, message_shape, bch_parameters)
+    logger.info("Mel spectrogram data saved successfully.")
 
 
 def reveal(args):
+    logger.info("Mode: revealing")
+
     melspectrogram_data, message_shape, centroids, bch_parameters = read_melspectrogram_data(args.container)
+    logger.info("Mel spectrogram data read successfully.")
+
     is_compressed = np.any(centroids)
     cinn_model, z_dim = demo_app_utils.load_cinn(is_compressed, config)
     cinn_model.eval()
 
     if is_compressed:
         melspectrogram_data = utilities.decompress_melspectrogram(melspectrogram_data, centroids)
+        logger.info("Decompressed mel spectrogram.")
     else:
         melspectrogram_data = torch.from_numpy(melspectrogram_data)
 
     z, _, _ = cinn_model(melspectrogram_data)
+    logger.info("Extracted z (noise) from mel spectrogram.")
 
     binary_data = demo_app_utils.decode(z)
+    logger.info("Binary data decoded from z (noise).")
 
     if np.any(bch_parameters):
         binary_data = BCHCode(binary_data).decode(bch_parameters[0], bch_parameters[1], message_shape)
+        logger.info("Binary data decoded with BCH.")
 
     if message_shape.size == 2:
         hidden_image = demo_app_utils.bin_to_image(binary_data, message_shape)
+        logger.info("Binary data converted to image.")
+        logger.info(f"Showing hidden image.")
         hidden_image.show()
     else:
         hidden_message = demo_app_utils.bin_to_text(binary_data)
+        logger.info("Binary data converted to text.")
         logger.info(f"Revealed hidden message: {hidden_message}")
 
 
