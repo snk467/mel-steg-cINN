@@ -1,11 +1,14 @@
 import random
+import warnings
 
 import librosa
 import numpy as np
+import scipy.cluster.vq as scipy_vq
 import torch
 from hurry.filesize import size
 from pynvml import *
 
+import LUT
 import utils.logger
 import utils.normalization as normalization
 from LUT import Colormap
@@ -226,3 +229,19 @@ def sample_z(out_shapes, batch_size, alpha=None, device=get_device(verbose=False
         samples.append(sample)
 
     return samples
+
+
+def compress_melspectrogram(mel_spectrogram: torch.Tensor):
+    spectrogram_shape = mel_spectrogram.shape
+    mel_spectrogram = mel_spectrogram.numpy().transpose(1, 2, 0).reshape(
+        (spectrogram_shape[1] * spectrogram_shape[2], spectrogram_shape[0]))
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore")
+        centroids, labels = scipy_vq.kmeans2(mel_spectrogram, np.array(LUT.Colormap.colormaps["parula_norm_lab"]))
+    indexes = labels.astype('uint8').reshape((spectrogram_shape[1], spectrogram_shape[2]))
+    return indexes, centroids
+
+
+def decompress_melspectrogram(indexes: np.ndarray, centroids: np.ndarray):
+    colormap = LUT.Colormap.from_colors_list(centroids)
+    return torch.Tensor(colormap.get_colors_from_indexes(indexes))[None, :].permute((0, 3, 1, 2))

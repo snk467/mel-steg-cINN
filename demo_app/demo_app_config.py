@@ -9,28 +9,15 @@ class Config(Structure):
     size = (512, 512)
     end_of_message_string = "_EOM"
 
-    class bchConfig(Structure):
-        mu = 1
-        correcting_capability = 3
+    class bch(Structure):
+        mi = 2
+        tau = 1  # Error correcting capability
 
-    class cinnConfig(Structure):
+    class cinn(Structure):
         clamping = 1.0
-        lr = 0.001
-        lr_feature_net = 0.001
-        n_epochs = 2
-        n_its_per_epoch = 50
-        weight_decay = 1.0e-5
-        betas = (0.9, 0.999)
         init_scale = 0.03
-        pre_low_lr = 0
-        batch_size = 2
-        dataset_size = 20
-        pretrain_epochs = 0
-        sampling_temperature = 1.0
-        early_stopper_min_delta = 0.001
-        early_stopper_patience = 10
 
-    class audio_parameters(Structure):
+    class audio(Structure):
         segment_length = 102200
         sample_rate = 22050
         hop_length = 200

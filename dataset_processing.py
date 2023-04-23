@@ -5,7 +5,6 @@ import h5py
 import soundfile
 from tqdm import tqdm
 
-import LUT
 import exceptions
 import utils.logger
 from config import config
