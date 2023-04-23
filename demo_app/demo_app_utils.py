@@ -47,7 +47,7 @@ def encode(bin_message: list, cinn_z_dimensions, config: demo_app_config.Config,
     if len(bin_message) > desired_size:
         raise ValueError(f"Binary message is too long: {bin_message.size} (max: {desired_size})")
 
-    logger.info(f"Used capacity: {len(bin_message)}/{desired_size}")
+    logger.info(f"Used capacity: {len(bin_message)}/{desired_size} [bits]")
 
     z = np.random.normal(size=desired_size)
 
