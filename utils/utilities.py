@@ -147,7 +147,9 @@ def get_files(files_directory):
 
 
 def load_audio(file_path):
-    audio, sample_rate = librosa.load(file_path, sr=None)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore")
+        audio, sample_rate = librosa.load(file_path, sr=None)
     return audio, sample_rate
 
 

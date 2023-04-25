@@ -17,23 +17,33 @@ import demo_app_utils
 from demo_app_config import config
 import utils.logger
 from utils import utilities
+import utils.metrics as metrics
+import utils.visualization as visualization
 import LUT
 
-logger = utils.logger.get_logger(__name__)
 
+MEL_SPECTROGRAM_WITH_MESSAGE_FILENAME = "melspectrogram_with_message.npz"
+logger = utils.logger.get_logger(__name__)
+data = {}
 
 # utils.logger.enable_debug_mode()
 
+
 def main(args):
-    if args.hide:
+    if args.demo:
+        logger.info("!!!======>DEMO MODE<======!!!")
         hide(args)
-    else:
         reveal(args)
+    else:
+        if args.hide:
+            hide(args)
+        else:
+            reveal(args)
 
 
 def write_melspectrogram_data(melspectrogram_data: torch.Tensor, centroids, message_shape, bch_parameters):
     np.savez_compressed(
-        os.path.join(args.output, "melspectrogram_with_message"),
+        os.path.join(args.output, MEL_SPECTROGRAM_WITH_MESSAGE_FILENAME),
         melspectrogram_data=melspectrogram_data,
         message_shape=message_shape,
         bch_parameters=bch_parameters,
@@ -64,6 +74,30 @@ def validate_args(args):
 
     if not (args.container.endswith(".npz") or filetype.is_audio(args.container)):
         raise ValueError(f"The container has unsupported type: {args.container.split(os.path.extsep)[-1]}")
+
+
+def print_statistics():
+    message_shape = data["message_shape"]
+
+    if type(message_shape) is tuple:
+        out_shape = (1024, 512)
+        message_only_accuracy = metrics.accuracy(data['z_result'].reshape(out_shape)[:message_shape[0], :message_shape[1]], data['z_target'].reshape(out_shape)[:message_shape[0],:message_shape[1]])
+    else:
+        message_only_accuracy = metrics.accuracy(data['z_result'][:message_shape], data['z_target'][:message_shape])
+
+    logger.info(f"MSE_ab: {metrics.mse(data['ab_result'], data['ab_target'])}, "
+                f"MAE_ab: {metrics.mae(data['ab_result'], data['ab_target'])}, "
+                f"MSE_z: {metrics.mse(data['z_result'], data['z_target'])}, "
+                f"Accuracy_z: {1.0 - metrics.accuracy(data['z_result'], data['z_target'])}, "
+                f"Accuracy_z (only message): {1.0 - message_only_accuracy}")
+
+
+def save_images():
+    visualization.get_img_simple(data['melspectrogram_target'][0][:1], data['melspectrogram_target'][0][1:],
+                                 "melspectrogram_target").save(os.path.join(args.output, "melspectrogram_target.png"))
+    visualization.get_img_simple(data['melspectrogram_result'][0][:1], data['melspectrogram_result'][0][1:],
+                                 "melspectrogram_result").save(
+        os.path.join(args.output, "melspectrogram_result.png"))
 
 
 def hide(args):
@@ -110,6 +144,12 @@ def hide(args):
     else:
         melspectrogram_data = melspectrogram_data.numpy()
 
+    if args.demo:
+        data["melspectrogram_target"] = utilities.get_melspectrogram_tensor(melspectrogram)
+        data["ab_target"] = utilities.get_melspectrogram_tensor(melspectrogram)[:, 1:]
+        data["z_target"] = torch.cat(z, dim=1).squeeze().detach()
+        data["message_shape"] = message_shape
+
     write_melspectrogram_data(melspectrogram_data, centroids, message_shape, bch_parameters)
     logger.info("Mel spectrogram data saved successfully.")
 
@@ -117,7 +157,12 @@ def hide(args):
 def reveal(args):
     logger.info("Mode: revealing")
 
-    melspectrogram_data, message_shape, centroids, bch_parameters = read_melspectrogram_data(args.container)
+    if args.demo:
+        container = os.path.join(args.output, MEL_SPECTROGRAM_WITH_MESSAGE_FILENAME)
+    else:
+        container = args.container
+
+    melspectrogram_data, message_shape, centroids, bch_parameters = read_melspectrogram_data(container)
     logger.info("Mel spectrogram data read successfully.")
 
     is_compressed = np.any(centroids)
@@ -132,6 +177,11 @@ def reveal(args):
 
     z, _, _ = cinn_model(melspectrogram_data)
     logger.info("Extracted z (noise) from mel spectrogram.")
+
+    if args.demo:
+        data["melspectrogram_result"] = melspectrogram_data
+        data["ab_result"] = melspectrogram_data[:, 1:].detach()
+        data["z_result"] = torch.cat(z, dim=1).squeeze().detach()
 
     binary_data = demo_app_utils.decode(z)
     logger.info("Binary data decoded from z (noise).")
@@ -150,6 +200,11 @@ def reveal(args):
         logger.info("Binary data converted to text.")
         logger.info(f"Revealed hidden message: {hidden_message}")
 
+    if args.demo:
+        print_statistics()
+        save_images()
+        os.remove(os.path.join(args.output, MEL_SPECTROGRAM_WITH_MESSAGE_FILENAME))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Mel-steg-cINN v1.0')
@@ -160,6 +215,7 @@ if __name__ == "__main__":
 
     parser_hide.add_argument('-c', '--compress', help="Use lossy compression", action="store_true")
     parser_hide.add_argument('-b', '--bch', help="Use BCH correction code", nargs='*', type=int)
+    parser_hide.add_argument('-d', '--demo', help="Simulate end-to-end steganographic process", action="store_true")
     group.add_argument('-m', '--message', help="Secret message", type=str)
     group.add_argument('-i', '--image', help="Secret binary image", type=str)
 

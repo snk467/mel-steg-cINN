@@ -29,24 +29,66 @@ def expand2size(pil_img, size):
         return result
 
 
-def show_data(input_in, target_in, label, clear_input_in, restore_audio=False, audio_file_name=None):
-    input_l = input_in.detach().cpu()
-    target_l = target_in.detach().cpu()
-    clear_input = clear_input_in
+def get_img_simple(input_l, input_ab, label, verbose=False):
+    l_channel = input_l.detach().cpu()
+    ab_channels = input_ab.detach().cpu()
 
-    print("L shape:", input_l.shape)
-    print("ab shape:", target_l.shape)
-    print("Label:", label)
+    if verbose:
+        print("L shape:", l_channel.shape)
+        print("ab shape:", ab_channels.shape)
+        print("Label:", label)
 
-    l_img = ToPILImage()(input_l).convert('RGB')
+    l_img = ToPILImage()(l_channel).convert('RGB')
 
-    l_clear_img = ToPILImage()(clear_input).convert('RGB')
+    a_img = ToPILImage()(ab_channels[0]).convert('RGB')
 
-    a_img = ToPILImage()(target_l[0]).convert('RGB')
+    b_img = ToPILImage()(ab_channels[1]).convert('RGB')
 
-    b_img = ToPILImage()(target_l[1]).convert('RGB')
+    rgb_img = get_rgb_image_from_lab_channels(l_channel, ab_channels)
 
-    rgb_img = get_rgb_image_from_lab_channels(clear_input, target_l)
+    max_size = max(l_img.size[0], a_img.size[0], b_img.size[0])
+
+    l_img = expand2size(l_img, max_size)
+
+    a_img = expand2size(a_img, max_size)
+
+    b_img = expand2size(b_img, max_size)
+
+    rgb_img = expand2size(rgb_img, max_size)
+
+    border_width = 10
+    border = Image.fromarray(np.zeros((max_size, border_width))).convert('RGB')
+
+    img = Image.fromarray(np.hstack((np.array(l_img),
+                                     np.array(border),
+                                     np.array(a_img),
+                                     np.array(border),
+                                     np.array(b_img),
+                                     np.array(border),
+                                     np.array(rgb_img))))
+
+    return img
+
+
+def get_img(input_l, input_ab, label, input_clear_l, verbose=True):
+    l_channel = input_l.detach().cpu()
+    ab_channels = input_ab.detach().cpu()
+    clear_l = input_clear_l
+
+    if verbose:
+        print("L shape:", l_channel.shape)
+        print("ab shape:", ab_channels.shape)
+        print("Label:", label)
+
+    l_img = ToPILImage()(l_channel).convert('RGB')
+
+    l_clear_img = ToPILImage()(clear_l).convert('RGB')
+
+    a_img = ToPILImage()(ab_channels[0]).convert('RGB')
+
+    b_img = ToPILImage()(ab_channels[1]).convert('RGB')
+
+    rgb_img = get_rgb_image_from_lab_channels(clear_l, ab_channels)
 
     max_size = max(l_img.size[0], l_clear_img.size[0], a_img.size[0], b_img.size[0])
 
@@ -72,6 +114,13 @@ def show_data(input_in, target_in, label, clear_input_in, restore_audio=False, a
                                      np.array(b_img),
                                      np.array(border),
                                      np.array(rgb_img))))
+
+    return img
+
+
+def show_data(input_in, target_in, label, clear_input_in, restore_audio=False, audio_file_name=None):
+
+    img = get_img(input_in, target_in, label, clear_input_in)
 
     if config.common.present_data:
         display(img)

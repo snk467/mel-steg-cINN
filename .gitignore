@@ -193,3 +193,4 @@ config.yml
 
 # demo_app result
 /melspectrogram_with_message.npz
+*.png
