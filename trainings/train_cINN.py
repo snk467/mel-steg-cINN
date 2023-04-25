@@ -10,6 +10,7 @@ import torch.optim
 import torchmetrics as torch_metrics
 import wandb
 
+import models.cinn.cinn_model
 import models.cinn.cinn_model as model
 import utils.logger
 import utils.utilities as utilities
@@ -179,8 +180,8 @@ def train(config=None, load=None):
         early_stopper = model.EarlyStopper(patience=config.early_stopper_patience,
                                            min_delta=config.early_stopper_min_delta)
 
-        cinn_training_utilities, cinn_output_dimensions = utilities.get_cinn_model(config, MODEL_FILE_NAME, load,
-                                                                                   device=device)
+        cinn_training_utilities, cinn_output_dimensions = models.cinn.cinn_model.get_cinn_model(config, MODEL_FILE_NAME, load,
+                                                                                                device=device)
         cinn_model = cinn_training_utilities.model
 
         logger.info(f"Training feature net: {main_config.cinn_management.end_to_end}")

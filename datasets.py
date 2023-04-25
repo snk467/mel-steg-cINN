@@ -6,7 +6,6 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 
-import utils.logger
 from utils.normalization import *
 
 # Get logger
@@ -22,6 +21,7 @@ class SpectrogramsDataset(Dataset):
         self.dataset = self.__dataset_file["melspectrograms"]
         self.output_dim = output_dim
         self.train = train
+        self.augmentor = None
 
         if size is not None and size < len(self.dataset):
             self.indexes = list(range(size))
@@ -75,6 +75,39 @@ class SpectrogramsDataset(Dataset):
 
         # Return tensors(L_noise, ab, string_name, L_clear)
         return L, ab, label, L_clear
+
+    def __len__(self):
+        return len(self.indexes)
+
+
+class TestDataset(Dataset):
+
+    def __init__(self, dataset_location, output_dim=None):
+        self.__dataset_file = h5py.File(dataset_location, 'r')
+        self.dataset = self.__dataset_file["melspectrograms"]
+        self.output_dim = output_dim
+        self.indexes = list(range(len(self.dataset)))[:10]
+
+    def __getitem__(self, index):
+        # Load tensors
+        L = torch.from_numpy(self.dataset[self.indexes[index], :, :, 0])
+        ab = torch.from_numpy(self.dataset[self.indexes[index], :, :, [1, 2]])
+
+        # Adjust axes
+        L = torch.reshape(L, (1, L.shape[0], L.shape[1]))
+        ab = torch.permute(ab, (2, 0, 1))
+
+        if self.output_dim is not None:
+            L = F.interpolate(L[None, :], size=self.output_dim)[0]
+            ab = F.interpolate(ab[None, :], size=self.output_dim)[0]
+
+        # Prepare label
+        label = f"melspectrogram_{str(self.indexes[index]).zfill(5)}"
+
+        logger.debug(f"(test) {label}")
+
+        # Return tensors(L_noise, ab, string_name, L_clear)
+        return L, ab, label
 
     def __len__(self):
         return len(self.indexes)

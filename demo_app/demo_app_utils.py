@@ -1,5 +1,12 @@
 import bitarray
 from PIL import Image
+import os
+import sys
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+sys.path.append(os.path.join(parent, "demo_app"))
 
 import demo_app_config
 import models.cinn.cinn_model
@@ -9,7 +16,7 @@ from utils.utilities import *
 END_OF_MESSAGE_SEQUENCE = "_EOM"
 
 
-def load_cinn(compress: bool, config: demo_app_config.Config):
+def load_cinn(compress: bool, config, device='cpu'):
     cinn_builder = models.cinn.cinn_model.cINN_builder(config.cinn)
     feature_net = cinn_builder.get_feature_net().float()
     fc_cond_net = cinn_builder.get_fc_cond_net().float()
@@ -18,9 +25,9 @@ def load_cinn(compress: bool, config: demo_app_config.Config):
     cinn_utilities = models.cinn.cinn_model.cINNTrainingUtilities(cinn_model, None)
 
     if compress:
-        cinn_utilities.load(config.compression_cinn_model_path, device='cpu')
+        cinn_utilities.load(config.compression_cinn_model_path, device=device)
     else:
-        cinn_utilities.load(config.cinn_model_path, device='cpu')
+        cinn_utilities.load(config.cinn_model_path, device=device)
 
     return cinn_utilities.model, cinn_z_dimensions
 

@@ -11,6 +11,7 @@ import torch.optim
 import torchmetrics as torch_metrics
 import wandb
 
+import models.cinn.cinn_model
 import models.cinn.cinn_model as model
 import utils.logger
 import utils.utilities as utilities
@@ -292,7 +293,7 @@ def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimens
 #     return colormap.get_colors_from_indexes(indexes)
 
 
-def compress_melspectrograms(mel_spectrograms: torch.Tensor):
+def compress_melspectrograms(mel_spectrograms: torch.Tensor, device=utilities.get_device(False)):
     result_mel_spectrograms = []
 
     for i in range(mel_spectrograms.shape[0]):
@@ -333,25 +334,25 @@ def train(config=None, load=None, revealing_load=None):
 
         logger.info("Downloading revealing model...")
         try:
-            revealing_cinn_model_utilities, revealing_cinn_output_dimensions = utilities.get_cinn_model(config,
-                                                                                                        STEG_CINN_MODEL_FILE_NAME,
-                                                                                                        revealing_load,
-                                                                                                        device=device)
+            revealing_cinn_model_utilities, revealing_cinn_output_dimensions = models.cinn.cinn_model.get_cinn_model(config,
+                                                                                                                     STEG_CINN_MODEL_FILE_NAME,
+                                                                                                                     revealing_load,
+                                                                                                                     device=device)
         except ValueError:
-            revealing_cinn_model_utilities, revealing_cinn_output_dimensions = utilities.get_cinn_model(config,
-                                                                                                        CINN_MODEL_FILE_NAME,
-                                                                                                        revealing_load,
-                                                                                                        device=device)
+            revealing_cinn_model_utilities, revealing_cinn_output_dimensions = models.cinn.cinn_model.get_cinn_model(config,
+                                                                                                                     CINN_MODEL_FILE_NAME,
+                                                                                                                     revealing_load,
+                                                                                                                     device=device)
 
         logger.info("Downloading hiding model...")
         try:
-            hiding_cinn_model_utilities, hiding_cinn_output_dimensions = utilities.get_cinn_model(config,
-                                                                                                  STEG_CINN_MODEL_FILE_NAME,
-                                                                                                  load)
+            hiding_cinn_model_utilities, hiding_cinn_output_dimensions = models.cinn.cinn_model.get_cinn_model(config,
+                                                                                                               STEG_CINN_MODEL_FILE_NAME,
+                                                                                                               load)
         except ValueError:
-            hiding_cinn_model_utilities, hiding_cinn_output_dimensions = utilities.get_cinn_model(config,
-                                                                                                  CINN_MODEL_FILE_NAME,
-                                                                                                  load)
+            hiding_cinn_model_utilities, hiding_cinn_output_dimensions = models.cinn.cinn_model.get_cinn_model(config,
+                                                                                                               CINN_MODEL_FILE_NAME,
+                                                                                                               load)
 
         logger.info(f"Training feature net: {main_config.cinn_management.end_to_end}")
         logger.info(f"Revealing model device: {next(revealing_cinn_model_utilities.model.parameters()).device}")
