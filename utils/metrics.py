@@ -1,6 +1,15 @@
+import torch.nn
 import wandb
 
 import utils.logger
+
+mse = torch.nn.MSELoss()
+mae = torch.nn.L1Loss()
+
+
+def accuracy(output, target):
+    assert target.shape == output.shape
+    return 1.0 - torch.sum(torch.sign(target) == torch.sign(output)) / target.numel()
 
 
 class Metrics:

@@ -154,7 +154,7 @@ def predict_cinn_example(cinn_model, cinn_output_dimensions, dataset, config, de
     sample_z = utilities.sample_z(cinn_output_dimensions, 1, config.alpha, device=utilities.get_device(verbose=False))
     x_l, x_ab, cond, ab_pred = cinn_model.prepare_batch((input, target, filename, clear_input))
     # cond[-1] = cond[-1][None, :]
-    x_ab_sampled, b = cinn_model.reverse_sample(sample_z, cond)
+    x_ab_sampled, _ = cinn_model.reverse_sample(sample_z, cond)
     print(desc)
     print("Target:")
     target_img = show_data(input, F.interpolate(target[None, :], x_ab_sampled[0][0].shape)[0], filename, clear_input,

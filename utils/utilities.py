@@ -245,3 +245,5 @@ def compress_melspectrogram(mel_spectrogram: torch.Tensor):
 def decompress_melspectrogram(indexes: np.ndarray, centroids: np.ndarray):
     colormap = LUT.Colormap.from_colors_list(centroids)
     return torch.Tensor(colormap.get_colors_from_indexes(indexes))[None, :].permute((0, 3, 1, 2))
+
+

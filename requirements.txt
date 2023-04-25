@@ -9,7 +9,7 @@ torch==1.13.0
 tqdm==4.64.0
 torchmetrics
 hurry.filesize
-wandb~=0.13.4
+wandb~=0.15.0
 freia~=0.2
 pydct~=1.1.0
 torchinfo~=1.7.1
