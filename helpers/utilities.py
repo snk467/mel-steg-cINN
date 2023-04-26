@@ -74,49 +74,19 @@ class Audio:
         return MelSpectrogram.from_color(mel_spectrogram_data, normalized, colormap, self.config)
 
 class MelSpectrogram:
-    def __init__(self, mel_spectrogram_data, normalized, config, range=None, colormap:Colormap=None, color_mel_spectrogram_data=None):
+    def __init__(self, mel_spectrogram_data, normalized, config, range=None, colormap:Colormap=None):
+        self.mel_spectrogram_data = mel_spectrogram_data
         self.normalized = normalized
         self.range = range 
         if colormap is not None and type(colormap) != Colormap:
             raise ArgumentError()
         self.colormap = colormap
         self.config = config
-        self.audio = None    
-        self.color_mel_spectrogram_data = color_mel_spectrogram_data
-           
-        
-        self.mel_spectrogram_data = self.__calculate_original_mel_spectrogram_data(mel_spectrogram_data)
-
-
-    def __calculate_original_mel_spectrogram_data(self, mel_spectrogram_data_in):
-        if mel_spectrogram_data_in is None:
-            raise ArgumentError(f"{mel_spectrogram_data_in} is None!")
-        
-        mel_spectrogram_data = mel_spectrogram_data_in
-
-        # Convert color back to values
-        if self.colormap is not None:
-            # colormap = Colormap.from_colormap(self.colormap)
-            mel_spectrogram_data = self.colormap.get_values_from_colors(mel_spectrogram_data)
-
-        # Inverse scaling
-        if self.range is not None:
-            mel_spectrogram_data = normalization.scale_global_minmax(mel_spectrogram_data,
-                                                                          min(self.range),
-                                                                          max(self.range),
-                                                                          self.config.global_min,
-                                                                          self.config.global_max)
-
-        # Inverse normalization
-        if self.normalized:
-            mel_spectrogram_data = normalization.normalize(mel_spectrogram_data, self.config.mean, self.config.standard_deviation, inverse=True) 
-            
-        return mel_spectrogram_data
+        self.audio = None        
 
     @classmethod
     def from_color(cls, mel_spectrogram_data, normalized, colormap, config):
-        
-        return cls(mel_spectrogram_data, normalized, config, range=(0.0,1.0), colormap=colormap, color_mel_spectrogram_data=mel_spectrogram_data)
+        return cls(mel_spectrogram_data, normalized, config, range=(0.0,1.0), colormap=colormap)
 
     @classmethod
     def from_value(cls, mel_spectrogram_data, normalized, range, config):
@@ -128,6 +98,22 @@ class MelSpectrogram:
             return self.audio
 
         mel_spectrogram_data = self.mel_spectrogram_data
+
+        if mel_spectrogram_data is None:
+            return None
+
+        # Convert color back to values
+        if self.colormap is not None:
+            # colormap = Colormap.from_colormap(self.colormap)
+            mel_spectrogram_data = self.colormap.get_values_from_colors(mel_spectrogram_data)
+
+        # Inverse scaling
+        if self.range is not None:
+            mel_spectrogram_data = normalization.scale_global_minmax(mel_spectrogram_data, min(self.range), max(self.range), self.config.global_min, self.config.global_max)
+
+        # Inverse normalization
+        if self.normalized:
+            mel_spectrogram_data = normalization.normalize(mel_spectrogram_data, self.config.mean, self.config.standard_deviation, inverse=True)
 
         # Inverse mel spectrogram
         mel_spectrogram_data = librosa.db_to_power(mel_spectrogram_data)
