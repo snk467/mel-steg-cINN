@@ -167,6 +167,7 @@ cython_debug/
 
 # Wandb
 /wandb
+/experiments/wandb
 
 # Cython built files
 colorization_cINN/joint_bilateral_filter.c
@@ -183,3 +184,13 @@ config.yml
 
 # Auxiliary notebooks
 /notebooks/*
+
+# Temporary files
+/tmp
+
+# IDEA
+/.idea
+
+# demo_app result
+/melspectrogram_with_message.npz
+*.png
