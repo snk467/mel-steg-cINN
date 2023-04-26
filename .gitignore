@@ -176,9 +176,6 @@ colorization_cINN/joint_bilateral_filter.c
 /output
 *.wav
 
-# Models
-/models/*
-
 # Local configuration files
 config.yml
 
