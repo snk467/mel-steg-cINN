@@ -86,7 +86,7 @@ class TestDataset(Dataset):
         self.__dataset_file = h5py.File(dataset_location, 'r')
         self.dataset = self.__dataset_file["melspectrograms"]
         self.output_dim = output_dim
-        self.indexes = list(range(len(self.dataset)))[:10]
+        self.indexes = list(range(len(self.dataset)))
 
     def __getitem__(self, index):
         # Load tensors
