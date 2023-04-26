@@ -195,11 +195,11 @@ class WrappedModel(nn.Module):
         # x_ab += 1e-3 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
         if main_config.cinn_management.end_to_end:
-            features, _ = self.feature_network.features(x_l.float())
+            features, _ = self.feature_network.features(x_l)
             # features = features[:, :, 1:-1, 1:-1]
         else:
             with torch.no_grad():
-                features, _ = self.feature_network.features(x_l.float())
+                features, _ = self.feature_network.features(x_l)
                 # features = features[:, :, 1:-1, 1:-1]
 
         # fc_section_cond = self.fc_cond_network(features[-1])
@@ -272,7 +272,7 @@ class WrappedModel(nn.Module):
         x_ab = F.interpolate(x_ab, size=main_config.cinn_management.img_dims)
         # x_ab += 1e-3 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
-        features, from_features = net_feat.features(x_l.float())
+        features, from_features = net_feat.features(x_l)
         # features = features[:, :, 1:-1, 1:-1]
 
         
