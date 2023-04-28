@@ -35,7 +35,7 @@ def reveal(x: torch.Tensor, cinn_model: models.cinn.cinn_model.WrappedModel):
 def transfer(x_l, x_ab_pred, compress):
 
     if compress:
-        mel_spectrogram = compress_melspectrograms(torch.cat((x_l, x_ab_pred), dim=1).detach())
+        mel_spectrogram = compress_melspectrograms(torch.cat((x_l, x_ab_pred), dim=1).detach().cpu())
     else:
         mel_spectrogram = torch.cat((x_l, x_ab_pred), dim=1).detach()
 
@@ -78,23 +78,27 @@ def run_experiment(binary, compress, config: experiments_config.config):
         acc_z_all = []
 
         for i_batch, x in enumerate(test_loader):
+            
+            if x[0].size()[0] != config.batch_size:
+                continue
+            
             x_l, x_ab_target, cond, _ = cinn_model.prepare_batch((*x, None))
             cinn_model.eval()
 
             x_ab_pred = hide(cond, z_target, cinn_model)
 
-            mel_spectrogram = transfer(x_l, x_ab_pred, compress)
+            mel_spectrogram = transfer(x_l.to(device), x_ab_pred, compress)
 
             x_ab_pred_compressed = mel_spectrogram[:, 1:]
 
             z_pred = reveal(mel_spectrogram.to(device), cinn_model)
 
-            mse_ab = metrics.mse(x_ab_pred, x_ab_target).detach().numpy()
-            mae_ab = metrics.mae(x_ab_pred, x_ab_target).detach().numpy()
-            mse_ab_after_compression = metrics.mse(x_ab_pred_compressed, x_ab_target).detach().numpy()
-            mae_ab_after_compression = metrics.mae(x_ab_pred_compressed, x_ab_target).detach().numpy()
-            mse_z = metrics.mse(z_pred, z_target_squeezed).detach().numpy()
-            acc_z = 1.0 - metrics.accuracy(z_pred, z_target_squeezed).detach().numpy()
+            mse_ab = metrics.mse(x_ab_pred.to('cpu'), x_ab_target.to('cpu')).detach().numpy()
+            mae_ab = metrics.mae(x_ab_pred.to('cpu'), x_ab_target.to('cpu')).detach().numpy()
+            mse_ab_after_compression = metrics.mse(x_ab_pred_compressed.to('cpu'), x_ab_target.to('cpu')).detach().numpy()
+            mae_ab_after_compression = metrics.mae(x_ab_pred_compressed.to('cpu'), x_ab_target.to('cpu')).detach().numpy()
+            mse_z = metrics.mse(z_pred.to('cpu'), z_target_squeezed.to('cpu')).detach().numpy()
+            acc_z = 1.0 - metrics.accuracy(z_pred.to('cpu'), z_target_squeezed.to('cpu')).detach().numpy()
 
             logger.info(f"Batch {i_batch + 1}: " 
                         f"MSE_ab: {mse_ab}, "

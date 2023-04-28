@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import os
+import multiprocessing
 import shutil
 from math import ceil
 
@@ -293,12 +294,14 @@ def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimens
 #     return colormap.get_colors_from_indexes(indexes)
 
 
+def compres_decompress(mel_spectrogram):
+    return utilities.decompress_melspectrogram(*utilities.compress_melspectrogram(mel_spectrogram))
+
 def compress_melspectrograms(mel_spectrograms: torch.Tensor, device=utilities.get_device(False)):
     result_mel_spectrograms = []
-
-    for i in range(mel_spectrograms.shape[0]):
-        indexes, centroids = utilities.compress_melspectrogram(mel_spectrograms[i])
-        result_mel_spectrograms.append(utilities.decompress_melspectrogram(indexes, centroids))
+    
+    pool = multiprocessing.Pool(os.cpu_count())
+    result_mel_spectrograms = pool.map(compres_decompress, [t.squeeze(0) for t in mel_spectrograms.split(1, dim=0)])
 
     return torch.cat(result_mel_spectrograms, dim=0).to(device)
 
