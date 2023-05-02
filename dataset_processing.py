@@ -1,6 +1,8 @@
 import argparse
+import os.path
 
 import PIL.Image as Image
+import filetype
 import h5py
 import soundfile
 from tqdm import tqdm
@@ -24,7 +26,10 @@ class AudioDatasetProcessor:
         loaded_audio = []
 
         for audio_file in tqdm(audio_files, leave=False, desc="Loading audio files"):
-            audio_full, sample_rate = load_audio(audio_file)
+            if not filetype.is_audio(audio_file):
+                continue
+
+            audio_full, sample_rate = load_audio(audio_file, self.config.sample_rate)
 
             if sample_rate != self.config.sample_rate:
                 raise exceptions.SampleRateError

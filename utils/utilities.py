@@ -146,11 +146,11 @@ def get_files(files_directory):
     return np.array(files)
 
 
-def load_audio(file_path):
+def load_audio(file_path, sample_rate=None):
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
-        audio, sample_rate = librosa.load(file_path, sr=None)
-    return audio, sample_rate
+        audio, sr = librosa.load(file_path, sr=sample_rate)
+    return audio, sr
 
 
 def test_cuda(verbose=True):

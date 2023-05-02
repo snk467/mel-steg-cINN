@@ -33,7 +33,7 @@ def load_cinn(compress: bool, config, device='cpu'):
 
 
 def load_audio(path: str, config: demo_app_config.Config):
-    return Audio(utils.utilities.load_audio(path)[0], config.audio)
+    return Audio(utils.utilities.load_audio(path, config.audio.sample_rate)[0], config.audio)
 
 
 def encode_bit(bit, initial_value, config: demo_app_config.Config):
