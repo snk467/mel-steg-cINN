@@ -118,16 +118,16 @@ def get_img(input_l, input_ab, label, input_clear_l, verbose=True):
     return img
 
 
-def show_data(input_in, target_in, label, clear_input_in, restore_audio=False, audio_file_name=None):
+def show_data(input_in, target_in, label, clear_input_in, restore_audio_track=False, audio_file_name=None):
 
     img = get_img(input_in, target_in, label, clear_input_in)
 
     if config.common.present_data:
         display(img)
 
-    if restore_audio:
+    if restore_audio_track:
         filename = f"restored_audio_{label}" if audio_file_name is None else audio_file_name
-        __restore_audio(clear_input, target_l, audio_file_name=filename)
+        restore_audio(input_in, target_in, audio_file_name=filename)
         display(Audio(f"{filename}.wav"))
 
     return img
@@ -158,12 +158,13 @@ def __get_colors_from_tensors(L_channel: torch.Tensor, ab_channels: torch.Tensor
     return Lab_np
 
 
-def __restore_audio(L_channel: torch.Tensor, ab_channels: torch.Tensor, audio_file_name: str):
+def restore_audio(l_channel: torch.Tensor, ab_channels: torch.Tensor,
+                  audio_file_name: str, output_dir=None, audio_config=config.audio_parameters.resolution_512x512):
+
     colormap_lab = LUT.Colormap.from_colormap("parula_norm_lab")
-    Lab_np = __get_colors_from_tensors(L_channel, ab_channels)
-    audio_config = config.audio_parameters.resolution_512x512
-    melspectrogram = utilities.MelSpectrogram.from_color(Lab_np, True, colormap_lab, audio_config)
-    filepath = os.path.join(os.getcwd(), f"{audio_file_name}.wav")
+    lab_np = __get_colors_from_tensors(l_channel, ab_channels)
+    melspectrogram = utilities.MelSpectrogram.from_color(lab_np, True, colormap_lab, audio_config)
+    filepath = os.path.join(os.getcwd() if output_dir is None else output_dir, f"{audio_file_name}.wav")
     soundfile.write(filepath, melspectrogram.get_audio().audio, audio_config.sample_rate)
 
 

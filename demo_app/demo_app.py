@@ -5,6 +5,7 @@ import traceback
 
 import filetype
 import numpy as np
+import soundfile as soundfile
 import torch
 from PIL import Image
 
@@ -89,6 +90,7 @@ def print_statistics():
                 f"MAE_ab: {metrics.mae(data['ab_result'], data['ab_target'])}, "
                 f"MSE_z: {metrics.mse(data['z_result'], data['z_target'])}, "
                 f"Accuracy_z: {1.0 - metrics.accuracy(data['z_result'], data['z_target'])}, "
+                f"Accuracy_binary: {1.0 - metrics.accuracy(torch.Tensor(data['binary_data_result'][:len(data['binary_data_target'])]), torch.Tensor(data['binary_data_target']))}, "
                 f"Accuracy_z (only message): {1.0 - message_only_accuracy}")
 
 
@@ -116,6 +118,12 @@ def hide(args):
     else:
         binary_data, message_shape = demo_app_utils.text_to_bin(args.message)
         logger.info("Message converted to binary data.")
+
+    if args.demo:
+        data["binary_data_target"] = binary_data
+        filepath = os.path.join(args.output, "audio_target.wav")
+        soundfile.write(filepath, melspectrogram.get_audio().get_audio(), config.audio.sample_rate)
+        logger.info("Saved audio_target.wav")
 
     bch_parameters = None
     if args.bch is not None:
@@ -178,17 +186,21 @@ def reveal(args):
     z, _, _ = cinn_model(melspectrogram_data)
     logger.info("Extracted z (noise) from mel spectrogram.")
 
-    if args.demo:
-        data["melspectrogram_result"] = melspectrogram_data
-        data["ab_result"] = melspectrogram_data[:, 1:].detach()
-        data["z_result"] = torch.cat(z, dim=1).squeeze().detach()
-
     binary_data = demo_app_utils.decode(z)
     logger.info("Binary data decoded from z (noise).")
 
     if np.any(bch_parameters):
         binary_data = BCHCode(binary_data).decode(bch_parameters[0], bch_parameters[1], message_shape)
         logger.info("Binary data decoded with BCH.")
+
+    if args.demo:
+        visualization.restore_audio(melspectrogram_data[0][0:1], melspectrogram_data[0][1:],
+                                    "audio_result", args.output, audio_config=config.audio)
+        logger.info("Saved audio_result.wav")
+        data["melspectrogram_result"] = melspectrogram_data
+        data["ab_result"] = melspectrogram_data[:, 1:].detach()
+        data["z_result"] = torch.cat(z, dim=1).squeeze().detach()
+        data["binary_data_result"] = binary_data
 
     if message_shape.size == 2:
         hidden_image = demo_app_utils.bin_to_image(binary_data, message_shape)

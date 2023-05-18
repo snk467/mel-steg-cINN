@@ -1830,7 +1830,7 @@ if __name__ == "__main__":
     
     print("Performance tests(NumPy):")
 
-    test_size = 2
+    test_size = 10
     array_size = 512
     array_of_arrays = []
     
