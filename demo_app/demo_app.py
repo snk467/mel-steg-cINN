@@ -70,7 +70,10 @@ def validate_args(args):
     if not os.path.isfile(args.container):
         raise ValueError(f"Container is not a file: {args.container}")
 
-    if not os.path.isdir(args.output):
+    if not os.path.exists(args.output):
+        os.makedirs(args.output)
+
+    if os.path.isfile(args.output):
         raise ValueError(f"Container is not a directory: {args.output}")
 
     if not (args.container.endswith(".npz") or filetype.is_audio(args.container)):
@@ -89,6 +92,7 @@ def print_statistics():
     logger.info(f"MSE_ab: {metrics.mse(data['ab_result'], data['ab_target'])}, "
                 f"MAE_ab: {metrics.mae(data['ab_result'], data['ab_target'])}, "
                 f"MSE_z: {metrics.mse(data['z_result'], data['z_target'])}, "
+                f"MAE_z: {metrics.mae(data['z_result'], data['z_target'])}, "
                 f"Accuracy_z: {1.0 - metrics.accuracy(data['z_result'], data['z_target'])}, "
                 f"Accuracy_binary: {1.0 - metrics.accuracy(torch.Tensor(data['binary_data_result'][:len(data['binary_data_target'])]), torch.Tensor(data['binary_data_target']))}, "
                 f"Accuracy_z (only message): {1.0 - message_only_accuracy}")
@@ -124,6 +128,12 @@ def hide(args):
         filepath = os.path.join(args.output, "audio_target.wav")
         soundfile.write(filepath, melspectrogram.get_audio().get_audio(), config.audio.sample_rate)
         logger.info("Saved audio_target.wav")
+
+        if args.compress:
+            melspectrogram_target_decompressed = utilities.decompress_melspectrogram(*utilities.compress_melspectrogram(utilities.get_melspectrogram_tensor(melspectrogram)[0]))
+            visualization.restore_audio(melspectrogram_target_decompressed[0][0:1], melspectrogram_target_decompressed[0][1:],
+                                        "audio_compress_target", args.output, audio_config=config.audio)
+            logger.info("Saved audio_compress_target.wav")
 
     bch_parameters = None
     if args.bch is not None:
