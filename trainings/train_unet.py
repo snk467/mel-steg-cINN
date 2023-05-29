@@ -243,10 +243,7 @@ def prepare_globals():
         "Loss": None,
         "MSE": torch_metrics.MeanSquaredError().to(device),
         "HuberLoss": torch.nn.HuberLoss().to(device),
-        "MAE": torch_metrics.MeanAbsoluteError().to(device),
-        # "RMSE": torch_metrics.MeanSquaredError(squared=False).to(device),
-        # "MAPE": torch_metrics.MeanAbsolutePercentageError().to(device)
-
+        "MAE": torch_metrics.MeanAbsoluteError().to(device)
     }
 
     global metrics

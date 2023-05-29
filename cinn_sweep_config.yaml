@@ -31,10 +31,6 @@ parameters:
       value: 20
     n_its_per_epoch:
       value: 50
-    pre_low_lr:
-      value: 0
-    pretrain_epochs:
-      value: 0
     sampling_temperature:
       value: 1.0
     weight_decay:

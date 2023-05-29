@@ -2,6 +2,9 @@
 import argparse
 import os
 import multiprocessing
+from multiprocessing import set_start_method
+from multiprocessing import get_context
+set_start_method("spawn")
 import shutil
 from math import ceil
 
@@ -21,6 +24,8 @@ from datasets import SpectrogramsDataset
 from utils.metrics import Metrics
 from utils.noise import GaussianNoise
 from utils.visualization import predict_cinn_example, predict_cinn_example_self_sampled_test
+
+
 
 
 def accuracy_loss(output, target):
@@ -46,9 +51,6 @@ def prepare_training():
 
     global mse_loss
     mse_loss = torch.nn.MSELoss().to(device)
-
-    # if config.cinn_management.load_file:
-    #     model.load(config.cinn_training.load_file)
 
     # Set metrics functions   
     metrics_functions = {
@@ -76,8 +78,6 @@ def loss(z_pred, z, ab_pred, ab_target, zz, jac, config):
     l = torch.mean(neg_log_likeli) / tot_output_size
 
     acc = accuracy_loss(z, z_pred)
-
-    # return (l_importance * l) + acc + mse_z + (mse_ab_importance * mse_ab), acc.item(), mse_z.item(), mse_ab.item(), l.item()
 
     return (config.l_importance * l) + (config.mse_z_importance * mse_z) + (
             config.mse_ab_importance * mse_ab), acc.item(), mse_z.item(), mse_ab.item(), l.item()
@@ -131,9 +131,6 @@ def generate_z(bin, cinn_z_dimensions, alpha, desired_size):
 
     logger.debug(f"Z length: {len(z)}")
     logger.debug(f"desired_size: {desired_size}")
-
-    # plt.hist(z, bins=100)
-    # plt.show()
 
     z = torch.from_numpy(np.array(z)).float()
     z = list(z.split(cinn_z_dimensions))
@@ -200,22 +197,6 @@ def train_one_epoch(training_loader,
     hiding_model.eval()
     revealing_model.train()
 
-    # Ustawainie lr odpowiednio do epoki
-    if i_epoch < 0:
-        for param_group in revealing_cinn_model_utilities.optimizer.param_groups:
-            param_group['lr'] = config.lr * 2e-2
-
-    if i_epoch == 0:
-        for param_group in revealing_cinn_model_utilities.optimizer.param_groups:
-            param_group['lr'] = config.lr
-
-    if main_config.cinn_management.end_to_end and i_epoch <= config.pretrain_epochs:
-        for param_group in revealing_cinn_model_utilities.feature_optimizer.param_groups:
-            param_group['lr'] = 0
-        if i_epoch == config.pretrain_epochs:
-            for param_group in revealing_cinn_model_utilities.feature_optimizer.param_groups:
-                param_group['lr'] = 1e-4
-
     avg_loss = []
     batch_checkpoint = ceil(min(len(training_loader) / 10, config.n_its_per_epoch / 10, 3))
 
@@ -261,13 +242,6 @@ def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimens
     x_l, x_ab_target, _, _ = x
     x_l = x_l.to('cpu')
 
-    # m = np.random.randint(2, size=tot_output_size)
-
-    # z = generate_z_batch(m,
-    #                     hiding_cinn_output_dimensions,
-    #                     config.batch_size,
-    #                     alpha=config.alpha)
-
     z = utilities.sample_z(hiding_cinn_output_dimensions, config.batch_size, config.alpha, device='cpu')
 
     cond = utilities.get_cond(x_l, hiding_cinn_model_utilities)
@@ -276,12 +250,7 @@ def process_batch(config, hiding_cinn_model_utilities, hiding_cinn_output_dimens
 
     x_ab_with_message = hiding_model.reverse_sample(z, cond)
 
-    # input_melspectrogram = compress_melspectrograms(config, x_l, x_ab_with_message[0])
-    input_melspectrogram = compress_melspectrograms(torch.cat([x_l, x_ab_with_message[0].detach()], dim=1))
-
-    # print("HEJ!", input_melspectrogram.shape)
-
-    # input_melspectrogram = torch.cat((x_l, x_ab_with_message[0]), dim=1).to(device)
+    input_melspectrogram = compress_melspectrograms_sequentially(torch.cat([x_l, x_ab_with_message[0].detach()], dim=1))
 
     return z, x_ab_with_message, x_ab_target, input_melspectrogram.float()
 
@@ -291,10 +260,19 @@ def compress_decompress(mel_spectrogram):
 
 
 def compress_melspectrograms(mel_spectrograms: torch.Tensor, device=utilities.get_device(False)):
+    with get_context("spawn").Pool() as pool:
+        result_mel_spectrograms = []
+        pool = multiprocessing.Pool(os.cpu_count())
+        result_mel_spectrograms = pool.map(compress_decompress, [t.squeeze(0) for t in mel_spectrograms.split(1, dim=0)])
+
+    return torch.cat(result_mel_spectrograms, dim=0).to(device)
+
+
+def compress_melspectrograms_sequentially(mel_spectrograms: torch.Tensor, device=utilities.get_device(False)):
     result_mel_spectrograms = []
     
-    pool = multiprocessing.Pool(os.cpu_count())
-    result_mel_spectrograms = pool.map(compress_decompress, [t.squeeze(0) for t in mel_spectrograms.split(1, dim=0)])
+    for mel_spectrogram in [t.squeeze(0) for t in mel_spectrograms.split(1, dim=0)]:
+        result_mel_spectrograms.append(compress_decompress(mel_spectrogram))
 
     return torch.cat(result_mel_spectrograms, dim=0).to(device)
 
@@ -321,9 +299,9 @@ def train(config=None, load=None, revealing_load=None):
 
         # Create data loaders for our datasets; shuffle for training, not for validation
         training_loader = torch.utils.data.DataLoader(training_set, batch_size=config.batch_size, shuffle=True,
-                                                      num_workers=2)
+                                                      num_workers=0)
         validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=config.batch_size, shuffle=False,
-                                                        num_workers=2)
+                                                        num_workers=0)
 
         early_stopper = model.EarlyStopper(patience=config.early_stopper_patience,
                                            min_delta=config.early_stopper_min_delta)
@@ -356,7 +334,7 @@ def train(config=None, load=None, revealing_load=None):
 
         step = 0
 
-        for i_epoch in range(-config.pre_low_lr, config.n_epochs):
+        for i_epoch in range(config.n_epochs):
 
             logger.info('EPOCH {}:'.format(i_epoch + 1))
             logger.info("       Model training.")
@@ -380,8 +358,7 @@ def train(config=None, load=None, revealing_load=None):
             # Report
             metrics.log_metrics(avg_metrics, "VALID AVG", step)
 
-            if i_epoch >= config.pretrain_epochs * 2:
-                revealing_cinn_model_utilities.scheduler_step(avg_loss)
+            revealing_cinn_model_utilities.scheduler_step(avg_loss)
 
             if early_stopper.early_stop(avg_metrics["MSE"]):
                 break
@@ -419,9 +396,6 @@ def train(config=None, load=None, revealing_load=None):
         if model_path is not None:
             shutil.rmtree(os.path.join(os.getcwd(), "tmp"))
 
-    # os.makedirs(os.path.dirname(config.filename), exist_ok=True)
-    # model.save(config.filename)
-
 
 def run(config, load=None, revealing_load=None):
     # Initialize Weights & Biases
@@ -441,8 +415,6 @@ if __name__ == "__main__":
     parser.add_argument('--lr_feature_net', type=float, required=False)
     parser.add_argument('--n_epochs', type=int, required=False)
     parser.add_argument('--n_its_per_epoch', type=int, required=False)
-    parser.add_argument('--pre_low_lr', type=float, required=False)
-    parser.add_argument('--pretrain_epochs', type=int, required=False)
     parser.add_argument('--sampling_temperature', type=float, required=False)
     parser.add_argument('--weight_decay', type=float, required=False)
     parser.add_argument('--load', type=str, required=False)

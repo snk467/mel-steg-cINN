@@ -22,12 +22,9 @@ import utils.metrics as metrics
 import utils.visualization as visualization
 import LUT
 
-
 MEL_SPECTROGRAM_WITH_MESSAGE_FILENAME = "melspectrogram_with_message.npz"
 logger = utils.logger.get_logger(__name__)
 data = {}
-
-# utils.logger.enable_debug_mode()
 
 
 def main(args):
@@ -85,7 +82,9 @@ def print_statistics():
 
     if type(message_shape) is tuple:
         out_shape = (1024, 512)
-        message_only_accuracy = metrics.accuracy(data['z_result'].reshape(out_shape)[:message_shape[0], :message_shape[1]], data['z_target'].reshape(out_shape)[:message_shape[0],:message_shape[1]])
+        message_only_accuracy = metrics.accuracy(
+            data['z_result'].reshape(out_shape)[:message_shape[0], :message_shape[1]],
+            data['z_target'].reshape(out_shape)[:message_shape[0], :message_shape[1]])
     else:
         message_only_accuracy = metrics.accuracy(data['z_result'][:message_shape], data['z_target'][:message_shape])
 
@@ -130,8 +129,10 @@ def hide(args):
         logger.info("Saved audio_target.wav")
 
         if args.compress:
-            melspectrogram_target_decompressed = utilities.decompress_melspectrogram(*utilities.compress_melspectrogram(utilities.get_melspectrogram_tensor(melspectrogram)[0]))
-            visualization.restore_audio(melspectrogram_target_decompressed[0][0:1], melspectrogram_target_decompressed[0][1:],
+            melspectrogram_target_decompressed = utilities.decompress_melspectrogram(
+                *utilities.compress_melspectrogram(utilities.get_melspectrogram_tensor(melspectrogram)[0]))
+            visualization.restore_audio(melspectrogram_target_decompressed[0][0:1],
+                                        melspectrogram_target_decompressed[0][1:],
                                         "audio_compress_target", args.output, audio_config=config.audio)
             logger.info("Saved audio_compress_target.wav")
 

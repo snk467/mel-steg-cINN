@@ -46,20 +46,11 @@ class cINN_builder:
             ConditionNode(32, main_config.cinn_management.img_dims[0] // 4,
                           main_config.cinn_management.img_dims[1] // 4),
             ConditionNode(64, main_config.cinn_management.img_dims[0] // 8,
-                          main_config.cinn_management.img_dims[1] // 8)]  # ,
-        # ConditionNode(fc_cond_length)]
+                          main_config.cinn_management.img_dims[1] // 8)]
 
         self.fc_cond_net = nn.Sequential(*[
             nn.LeakyReLU(),
-            nn.Conv2d(feature_channels, fc_cond_length, 3, stride=16, padding=1),  # 64 x 64 # 8x8
-            # nn.LeakyReLU(),
-            # nn.Conv2d(64, fc_cond_length, 3, stride=2, padding=1), # 32 x 32
-            # nn.LeakyReLU(),
-            # nn.Conv2d(128, fc_cond_length, 3, stride=2, padding=1), # 16 x 16
-            # nn.LeakyReLU(),
-            # nn.Conv2d(128, fc_cond_length, 3, stride=2, padding=1), # 8 x 8
-            # nn.LeakyReLU(),
-            # nn.Conv2d(128, fc_cond_length, 2, stride=2, padding=1), # 4 x 4
+            nn.Conv2d(feature_channels, fc_cond_length, 3, stride=16, padding=1),
             nn.AvgPool2d(4),
             nn.BatchNorm2d(fc_cond_length),
         ])
@@ -153,8 +144,6 @@ class cINN_builder:
         return output_dimensions
 
     def get_cinn(self):
-        # TODO: Ładowanie zapisanej sieci
-
         cinn, nodes = self.build_cinn()
         output_dimensions = self.__calculate_output_dimenstions(nodes)
 
@@ -185,8 +174,6 @@ class WrappedModel(nn.Module):
 
     def forward(self, x):
 
-        # print(x.shape)
-
         x_l = x[:, 0:1, :, :]
         x_ab = x[:, 1:, :, :]
 
@@ -197,39 +184,19 @@ class WrappedModel(nn.Module):
 
         logger.debug(f"x_ab shape after interpolate: {x_ab.shape}")
 
-        # x_ab += 1e-3 * torch.cuda.FloatTensor(x_ab.shape).normal_()
-
         if main_config.cinn_management.end_to_end:
             features, _ = self.feature_network.features(x_l)
-            # features = features[:, :, 1:-1, 1:-1]
         else:
             with torch.no_grad():
                 features, _ = self.feature_network.features(x_l)
-                # features = features[:, :, 1:-1, 1:-1]
 
-        # fc_section_cond = self.fc_cond_network(features[-1])
-        cond = [*features]  # , fc_section_cond.reshape((fc_section_cond.shape[0], fc_section_cond.shape[1]))]
+        cond = [*features]
 
         for i, c in enumerate(cond):
             logger.debug(f"cond[{i}].shape: {c.shape}")
 
         z, jac = self.inn(x_ab, cond)
-
-        # for item in z:
-        #     print(type(item))
-        #     if isinstance(item, tuple):
-        #         print(len(item))
-        #         for inner_item in item:
-        #             print(type(inner_item), inner_item.shape)
-
-        # print(len(z))        
-        # print(z[0].shape)
-        # print(z[1].shape)
-        # print(z[2].shape)
-        # print(z[3].shape)
         zz = sum(torch.sum(o ** 2) for o in z)
-
-        # jac = self.inn.jacobian(run_forward=False)
 
         return z, zz, jac
 
@@ -249,12 +216,6 @@ class WrappedModel(nn.Module):
     def istraining(self):
         return self.inn.training, self.feature_network.training
 
-    # def to(self, device):
-    #    self.feature_network = self.feature_network.to(device)
-    #    self.fc_cond_network = self.fc_cond_network.to(device)
-    #    self.inn = self.inn.to(device)     
-    #    return self
-
     def prepare_batch(self, x):
         self.eval()
 
@@ -265,32 +226,17 @@ class WrappedModel(nn.Module):
         x_l, x_ab, _, _ = x
         x_l = x_l.to(device)
 
-        # print("BEFORE")
-        # print(x_l.shape)
-        # print(x_ab.shape)
-
         if x_l.ndim == 3:
             x_l = x_l[None, :]
 
         if x_ab.ndim == 3:
             x_ab = x_ab[None, :]
 
-        # print("AFTER")
-        # print(x_l.shape)
-        # print(x_ab.shape)
-
-        # Na razie tego nie używamy
         x_ab = F.interpolate(x_ab, size=main_config.cinn_management.img_dims)
-        # x_ab += 1e-3 * torch.cuda.FloatTensor(x_ab.shape).normal_()
 
         features, from_features = net_feat.features(x_l)
-        # features = features[:, :, 1:-1, 1:-1]
-
-        # print(features.shape)
         ab_pred = net_feat.forward_from_features(from_features)
-
-        # print(net_cond.training)
-        cond = [*features]  # , net_cond(features[-1]).squeeze()]
+        cond = [*features]
 
         self.train()
 
@@ -412,8 +358,8 @@ def get_cinn_model(cinn_training_config, filename=None, run_path=None, device='c
     fc_cond_net = cinn_builder.get_fc_cond_net()
     cinn_net, cinn_output_dimensions = cinn_builder.get_cinn()
 
-    cinn_model = cinn.cinn_model.WrappedModel(feature_net, fc_cond_net, cinn_net).to(device)
-    cinn_utilities = cinn.cinn_model.cINNTrainingUtilities(cinn_model.float(), cinn_training_config)
+    cinn_model = models.cinn.cinn_model.WrappedModel(feature_net, fc_cond_net, cinn_net).to(device)
+    cinn_utilities = models.cinn.cinn_model.cINNTrainingUtilities(cinn_model.float(), cinn_training_config)
 
     if run_path is not None:
         cinn_utilities.load(restored_model.name, device=device)

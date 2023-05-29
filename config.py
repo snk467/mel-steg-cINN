@@ -4,7 +4,7 @@ from structured_config import Structure
 
 
 # This is just a config structure, the values are just placeholders.
-# Please define your configuration in config_local.yml file.
+# Please define your configuration in config.yml file.
 class Config(Structure):
     class audio_parameters(Structure):
         class resolution_512x512(Structure):
@@ -71,10 +71,8 @@ class Config(Structure):
         weight_decay = 1e-5
         betas = (0.9, 0.999)  # concerning adam optimizer
         init_scale = 0.030  # initialization std. dev. of weights (0.03 is approx xavier)
-        pre_low_lr = 0  # for the first n epochs, lower the lr by a factor of 20
         batch_size = 2
         dataset_size = 20
-        pretrain_epochs = 0
         sampling_temperature = 1.0
         early_stopper_min_delta = 0.001
         early_stopper_patience = 10
@@ -94,10 +92,8 @@ class Config(Structure):
         weight_decay = 1e-5
         betas = (0.9, 0.999)  # concerning adam optimizer
         init_scale = 0.030  # initialization std. dev. of weights (0.03 is approx xavier)
-        pre_low_lr = 0  # for the first n epochs, lower the lr by a factor of 20
         batch_size = 2
         dataset_size = 20
-        pretrain_epochs = 0
         sampling_temperature = 1.0
         early_stopper_min_delta = 0.001
         early_stopper_patience = 10

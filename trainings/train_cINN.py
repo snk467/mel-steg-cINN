@@ -34,9 +34,6 @@ def prepare_training():
     global mse_loss
     mse_loss = torch.nn.MSELoss().to(device)
 
-    # if config.cinn_management.load_file:
-    #     model.load(config.cinn_training.load_file)
-
     # Set metrics functions   
     metrics_functions = {
         "MSE": torch_metrics.MeanSquaredError().to(device),
@@ -98,23 +95,6 @@ def validate(cinn_model, cinn_output_dimensions, config, validation_loader):
 def train_one_epoch(cinn_model, training_loader, config, i_epoch, step,
                     cinn_training_utilities: model.cINNTrainingUtilities, cinn_output_dimensions):
     cinn_model.train()
-
-    # Ustawainie lr odpowiednio do epoki
-    if i_epoch < 0:
-        for param_group in cinn_training_utilities.optimizer.param_groups:
-            param_group['lr'] = config.lr * 2e-2
-
-    if i_epoch == 0:
-        for param_group in cinn_training_utilities.optimizer.param_groups:
-            param_group['lr'] = config.lr
-
-    if main_config.cinn_management.end_to_end and i_epoch <= config.pretrain_epochs:
-        for param_group in cinn_training_utilities.feature_optimizer.param_groups:
-            param_group['lr'] = 0
-        if i_epoch == config.pretrain_epochs:
-            for param_group in cinn_training_utilities.feature_optimizer.param_groups:
-                param_group['lr'] = 1e-4
-
     avg_loss = []
     batch_checkpoint = ceil(min(len(training_loader) / 10, config.n_its_per_epoch / 10, 3))
 
@@ -190,7 +170,7 @@ def train(config=None, load=None):
 
         step = 0
 
-        for i_epoch in range(-config.pre_low_lr, config.n_epochs):
+        for i_epoch in range(config.n_epochs):
             logger.info('EPOCH {}:'.format(i_epoch + 1))
             logger.info("       Model training.")
             avg_loss, step = train_one_epoch(cinn_model, training_loader, config, i_epoch, step,
@@ -201,15 +181,10 @@ def train(config=None, load=None):
             avg_metrics = validate(cinn_model, cinn_output_dimensions, config, validation_loader)
             # Report
             metrics.log_metrics(avg_metrics, "VALID AVG", step)
-
-            if i_epoch >= config.pretrain_epochs * 2:
-                cinn_training_utilities.scheduler_step(avg_loss)
+            cinn_training_utilities.scheduler_step(avg_loss)
 
             if early_stopper.early_stop(avg_metrics["MSE"]):
                 break
-
-            # if i_epoch > 0 and (i_epoch % config.checkpoint_save_interval) == 0:
-            #     model.save(config.filename + '_checkpoint_%.4i' % (i_epoch * (1-config.checkpoint_save_overwrite)))
 
         cinn_model.eval()
         logger.info("Generating examples.")
@@ -260,8 +235,6 @@ if __name__ == "__main__":
     parser.add_argument('--lr_feature_net', type=float, required=False)
     parser.add_argument('--n_epochs', type=int, required=False)
     parser.add_argument('--n_its_per_epoch', type=int, required=False)
-    parser.add_argument('--pre_low_lr', type=float, required=False)
-    parser.add_argument('--pretrain_epochs', type=int, required=False)
     parser.add_argument('--sampling_temperature', type=float, required=False)
     parser.add_argument('--weight_decay', type=float, required=False)
     parser.add_argument('--load', type=str, required=False)

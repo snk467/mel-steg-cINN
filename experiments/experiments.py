@@ -49,7 +49,7 @@ def run_experiment(binary, compress, config: experiments_config.config):
         test_set = TestDataset(config.dataset_path,
                                output_dim=config.cinn.output_dim)
 
-        test_loader = torch.utils.data.DataLoader(test_set, batch_size=config.batch_size, shuffle=False, num_workers=2)
+        test_loader = torch.utils.data.DataLoader(test_set, batch_size=config.batch_size, shuffle=False, num_workers=0)
 
         cinn_model, cinn_output_dimensions = demo_app_utils.load_cinn(compress, config, device=device)
 

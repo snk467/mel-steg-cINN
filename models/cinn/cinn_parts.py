@@ -64,27 +64,20 @@ class F_fully_connected(nn.Module):
     def __init__(self, size_in, size, internal_size=None, dropout=0.0):
         super(F_fully_connected, self).__init__()
         if not internal_size:
-            internal_size = 2*size
+            internal_size = 2 * size
 
         self.d1 = nn.Dropout(p=dropout)
-        #self.d2 = nn.Dropout(p=dropout)
-        #self.d2b = nn.Dropout(p=dropout)
 
         self.fc1 = nn.Linear(size_in, internal_size)
-        #self.fc2 = nn.Linear(internal_size, internal_size)
-        #self.fc2b = nn.Linear(internal_size, internal_size)
         self.fc3 = nn.Linear(internal_size, size)
 
         self.nl1 = nn.ReLU()
-        # self.nl2 = nn.ReLU()
-        #self.nl2b = nn.ReLU()
 
     def forward(self, x):
         out = self.nl1(self.d1(self.fc1(x)))
         out = self.fc3(out)
-        #out = self.nl2b(self.d2b(self.fc2b(out)))
-        #out = self.fc3(out)
         return out
+
 
 class F_fully_convolutional(nn.Module):
 
@@ -94,15 +87,16 @@ class F_fully_convolutional(nn.Module):
         pad = kernel_size // 2
 
         self.leaky_slope = leaky_slope
-        self.conv1 = nn.Conv2d(in_channels, internal_size,                  kernel_size=kernel_size, padding=pad)
-        self.conv2 = nn.Conv2d(in_channels + internal_size, internal_size,  kernel_size=kernel_size, padding=pad)
-        self.conv3 = nn.Conv2d(in_channels + 2*internal_size, out_channels, kernel_size=1, padding=0)
+        self.conv1 = nn.Conv2d(in_channels, internal_size, kernel_size=kernel_size, padding=pad)
+        self.conv2 = nn.Conv2d(in_channels + internal_size, internal_size, kernel_size=kernel_size, padding=pad)
+        self.conv3 = nn.Conv2d(in_channels + 2 * internal_size, out_channels, kernel_size=1, padding=0)
 
     def forward(self, x):
         x1 = F.leaky_relu(self.conv1(x), self.leaky_slope)
         x2 = F.leaky_relu(self.conv2(torch.cat([x, x1], 1)), self.leaky_slope)
         return self.conv3(torch.cat([x, x1, x2], 1))
-    
+
+
 class subnet_coupling_layer(nn.Module):
     def __init__(self, dims_in, dims_c, F_class, subnet, sub_len, F_args={}, clamp=5.):
         super().__init__()
@@ -120,8 +114,8 @@ class subnet_coupling_layer(nn.Module):
         condition_length = sub_len
         self.subnet = subnet
 
-        self.s1 = F_class(self.split_len1 + condition_length, self.split_len2*2, **F_args)
-        self.s2 = F_class(self.split_len2 + condition_length, self.split_len1*2, **F_args)
+        self.s1 = F_class(self.split_len1 + condition_length, self.split_len2 * 2, **F_args)
+        self.s2 = F_class(self.split_len2 + condition_length, self.split_len1 * 2, **F_args)
 
     def e(self, s):
         return torch.exp(self.clamp * 0.636 * torch.atan(s / self.clamp))
@@ -144,7 +138,7 @@ class subnet_coupling_layer(nn.Module):
             y2 = self.e(s1) * x2 + t1
             self.last_jac = self.log_e(s1) + self.log_e(s2)
 
-        else: # names of x and y are swapped!
+        else:  # names of x and y are swapped!
             r1 = self.s1(torch.cat([x1, c_star], 1) if self.conditional else x1)
             s1, t1 = r1[:, :self.split_len2], r1[:, self.split_len2:]
             y2 = (x2 - t1) / self.e(s1)
@@ -157,7 +151,7 @@ class subnet_coupling_layer(nn.Module):
         return (torch.cat((y1, y2), 1),), self.jacobian(x)
 
     def jacobian(self, x, c=[], rev=False):
-        return torch.sum(self.last_jac, dim=tuple(range(1, self.ndims+1)))
+        return torch.sum(self.last_jac, dim=tuple(range(1, self.ndims + 1)))
 
     def output_dims(self, input_dims):
         return input_dims
